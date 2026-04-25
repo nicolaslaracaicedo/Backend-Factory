@@ -154,6 +154,15 @@ export const FirmaService = {
     return { id: actualizada!.id, nombre: actualizada!.nombre, fecha_vencimiento: actualizada!.fecha_vencimiento, info };
   },
 
+  async getActivaParaFirmar(empresaId: number): Promise<{ archivo_p12: string; password: string } | null> {
+    const firma = await FirmaModel.findActivaConP12ByEmpresa(empresaId);
+    if (!firma) return null;
+    return {
+      archivo_p12: firma.archivo_p12,
+      password: decryptPassword(firma.password),
+    };
+  },
+
   async activar(id: number, empresaId: number) {
     const firma = await FirmaModel.findById(id);
     if (!firma) throw new Error('Firma no encontrada.');

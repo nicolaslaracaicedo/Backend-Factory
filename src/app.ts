@@ -16,6 +16,7 @@ import proveedoresRoutes from './routes/proveedores.routes';
 import gruposProductosRoutes from './routes/grupos_productos.routes';
 import productosRoutes from './routes/productos.routes';
 import codigosIvaRoutes from './routes/codigos_iva.routes';
+import facturasRoutes from './routes/facturas.routes';
 
 dotenv.config();
 
@@ -69,6 +70,9 @@ app.use('/api/codigos-iva', codigosIvaRoutes);
 
 // RUTAS PRODUCTOS
 app.use('/api/productos', productosRoutes);
+
+// RUTAS FACTURAS
+app.use('/api/facturas', facturasRoutes);
 
 pool.query('SELECT 1')
   .then(() => {

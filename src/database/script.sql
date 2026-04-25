@@ -248,6 +248,7 @@ CREATE TABLE facturas (
   id_usuario             INT NOT NULL REFERENCES usuarios(id),
   id_cliente             INT REFERENCES clientes(id),
   id_punto_emision       INT NOT NULL REFERENCES puntos_emision(id),
+  id_ambiente            SMALLINT NOT NULL REFERENCES ambiente(id),
   cod_establecimiento    VARCHAR(3) NOT NULL,
   cod_punto_emision      VARCHAR(3) NOT NULL,
   secuencial             VARCHAR(9) NOT NULL,

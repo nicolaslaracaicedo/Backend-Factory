@@ -3,6 +3,9 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Retorna DATE como string YYYY-MM-DD en lugar de objeto Date
+pg.types.setTypeParser(1082, (val: string) => val);
+
 const { Pool } = pg;
 
 const pool = new Pool({

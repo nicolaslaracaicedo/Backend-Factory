@@ -38,6 +38,15 @@ export const FirmaModel = {
     return result.rows[0] ?? null;
   },
 
+  async findActivaConP12ByEmpresa(empresaId: number): Promise<FirmaElectronica | null> {
+    const result = await pool.query<FirmaElectronica>(
+      `SELECT id, id_empresa, nombre, archivo_p12, password, fecha_vencimiento, activo, created_at
+       FROM firmas_electronicas WHERE id_empresa = $1 AND activo = TRUE LIMIT 1`,
+      [empresaId]
+    );
+    return result.rows[0] ?? null;
+  },
+
   async findById(id: number): Promise<FirmaElectronica | null> {
     const result = await pool.query<FirmaElectronica>(
       `SELECT id, id_empresa, nombre, archivo_p12, password, fecha_vencimiento, activo, created_at
