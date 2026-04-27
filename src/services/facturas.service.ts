@@ -423,7 +423,7 @@ export const FacturaService = {
 
     let xmlFirmado: string;
     try {
-      xmlFirmado = firmarXml(xmlSinFirmar, firma.archivo_p12, firma.password);
+      xmlFirmado = await firmarXml(xmlSinFirmar, firma.archivo_p12, firma.password);
     } catch (e: any) {
       throw new Error(`Error al firmar el XML: ${e.message}`);
     }
@@ -440,17 +440,20 @@ export const FacturaService = {
       throw new Error(`Error al conectar con el SRI: ${e.message}`);
     }
 
-    if (recepcionEstado === 'DEVUELTA') {
+    if (recepcionEstado !== 'RECIBIDA') {
+      const motivo = recepcionMensajes.length > 0
+        ? recepcionMensajes.join(' | ')
+        : `Respuesta inesperada del SRI en recepción: "${recepcionEstado || 'sin respuesta'}"`;
       await FacturaModel.actualizarEmision(id, {
         xml_generado: xmlFirmado,
         xml_autorizado: '',
         numero_autorizacion: '',
         fecha_autorizacion: null,
         estado: 'RECHAZADA',
-        respuesta_sri: recepcionMensajes.join(' | '),
-        motivo_rechazo: recepcionMensajes.join(' | '),
+        respuesta_sri: motivo,
+        motivo_rechazo: motivo,
       });
-      throw new Error(`Comprobante devuelto por el SRI: ${recepcionMensajes.join('; ')}`);
+      throw new Error(`Comprobante no recibido por el SRI: ${motivo}`);
     }
 
     // Estado RECIBIDA — consultar autorización
@@ -481,7 +484,9 @@ export const FacturaService = {
       fecha_autorizacion: autorizacion.fechaAutorizacion || null,
       estado: nuevoEstado,
       respuesta_sri: autorizacion.mensajes.length > 0 ? autorizacion.mensajes.join(' | ') : null,
-      motivo_rechazo: nuevoEstado === 'RECHAZADA' ? autorizacion.mensajes.join(' | ') : null,
+      motivo_rechazo: nuevoEstado === 'RECHAZADA'
+        ? (autorizacion.mensajes.join(' | ') || `Estado SRI: ${autorizacion.estado || 'sin respuesta'}`)
+        : null,
     });
 
     return actualizada;

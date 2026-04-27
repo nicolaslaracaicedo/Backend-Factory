@@ -1,7 +1,8 @@
 import forge from 'node-forge';
+import crypto from 'crypto';
 
-function sha1B64(data: string, encoding: 'utf8' | 'binary' = 'utf8'): string {
-  const md = forge.md.sha1.create();
+function sha256Base64(data: string, encoding: 'utf8' | 'binary' = 'utf8'): string {
+  const md = forge.md.sha256.create();
   if (encoding === 'utf8') {
     md.update(forge.util.encodeUtf8(data));
   } else {
@@ -10,7 +11,7 @@ function sha1B64(data: string, encoding: 'utf8' | 'binary' = 'utf8'): string {
   return forge.util.encode64(md.digest().bytes());
 }
 
-// C14N simplificado: quita la declaración XML y normaliza elementos vacíos
+// C14N simplificado
 function c14n(xml: string): string {
   return xml
     .replace(/<\?xml[^?]*\?>\s*/g, '')
@@ -23,7 +24,6 @@ function parseP12(
 ): { cert: forge.pki.Certificate; privateKey: forge.pki.rsa.PrivateKey } {
   const p12Der = forge.util.decode64(p12Base64);
 
-  // Intento normal
   try {
     const p12Asn1 = forge.asn1.fromDer(p12Der);
     const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, password);
@@ -34,9 +34,6 @@ function parseP12(
     if (cert && key) return { cert, privateKey: key as forge.pki.rsa.PrivateKey };
     throw new Error('No se pudo extraer el certificado o la clave privada del P12.');
   } catch (e: any) {
-    // node-forge solo soporta MAC SHA-1; certificados con MAC SHA-256 fallan aquí.
-    // Solución: eliminar el bloque macData del ASN.1 para omitir la verificación.
-    // El descifrado de las bolsas (clave privada) sigue usando el password correcto.
     if (!e.message?.includes('MAC')) throw e;
   }
 
@@ -61,28 +58,19 @@ export function firmarXml(xmlSinFirmar: string, p12Base64: string, password: str
   // 2. Datos del certificado
   const certDer = forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).bytes();
   const certBase64 = forge.util.encode64(certDer);
-  const certDigest = sha1B64(certDer, 'binary');
+  const certDigest = sha256Base64(certDer, 'binary');
 
   const issuerDN = cert.issuer.attributes
     .map((a) => `${a.shortName}=${a.value}`)
     .join(', ');
   const serialDecimal = BigInt('0x' + cert.serialNumber).toString(10);
-  // Convertir UTC a hora Ecuador (UTC-5) antes de formatear
+  
+  // Hora Ecuador
   const now = new Date();
   const ecuadorMs = now.getTime() - 5 * 60 * 60 * 1000;
   const signingTime = new Date(ecuadorMs).toISOString().replace(/\.\d{3}Z$/, '-05:00');
 
-  // 3. KeyInfo (con xmlns explícito para digest aislado)
-  const keyInfoDigestable =
-    `<ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="Certificate">` +
-    `<ds:X509Data>` +
-    `<ds:X509Certificate>${certBase64}</ds:X509Certificate>` +
-    `</ds:X509Data>` +
-    `</ds:KeyInfo>`;
-  const kiDigest = sha1B64(c14n(keyInfoDigestable));
-
-  // 4. SignedProperties (con xmlns explícitos para digest aislado)
-  // C14N ordena namespace declarations por prefijo: "ds" < "xades"
+  // 3. SignedProperties
   const signedPropsDigestable =
     `<xades:SignedProperties xmlns:ds="http://www.w3.org/2000/09/xmldsig#" ` +
     `xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="SignatureProperties">` +
@@ -91,7 +79,7 @@ export function firmarXml(xmlSinFirmar: string, p12Base64: string, password: str
     `<xades:SigningCertificate>` +
     `<xades:Cert>` +
     `<xades:CertDigest>` +
-    `<ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>` +
+    `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>` +
     `<ds:DigestValue>${certDigest}</ds:DigestValue>` +
     `</xades:CertDigest>` +
     `<xades:IssuerSerial>` +
@@ -102,41 +90,38 @@ export function firmarXml(xmlSinFirmar: string, p12Base64: string, password: str
     `</xades:SigningCertificate>` +
     `</xades:SignedSignatureProperties>` +
     `</xades:SignedProperties>`;
-  const spDigest = sha1B64(c14n(signedPropsDigestable));
+  const spDigest = sha256Base64(c14n(signedPropsDigestable));
 
-  // 5. Digest del documento original
-  const docDigest = sha1B64(c14n(xmlSinFirmar));
+  // 4. Digest del documento original
+  const docDigest = sha256Base64(c14n(xmlSinFirmar));
 
-  // 6. SignedInfo (con xmlns explícito — es lo que se firma)
+  // 5. SignedInfo CORREGIDO
   const signedInfo =
     `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">` +
     `<ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>` +
-    `<ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/>` +
+    `<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>` +
     `<ds:Reference Id="SignedPropertiesID" Type="http://uri.etsi.org/01903#SignedProperties" URI="#SignatureProperties">` +
-    `<ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>` +
+    `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>` +
     `<ds:DigestValue>${spDigest}</ds:DigestValue>` +
     `</ds:Reference>` +
-    `<ds:Reference URI="">` +
+    `<ds:Reference URI="#comprobante">` +
     `<ds:Transforms>` +
     `<ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>` +
     `</ds:Transforms>` +
-    `<ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>` +
+    `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>` +
     `<ds:DigestValue>${docDigest}</ds:DigestValue>` +
-    `</ds:Reference>` +
-    `<ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>` +
-    `<ds:DigestValue>${kiDigest}</ds:DigestValue>` +
     `</ds:Reference>` +
     `</ds:SignedInfo>`;
 
-  // 7. Firmar el SignedInfo con RSA-SHA1
-  const md = forge.md.sha1.create();
-  md.update(forge.util.encodeUtf8(c14n(signedInfo)));
-  const signatureValue = forge.util.encode64(privateKey.sign(md));
+  // 6. Firmar el SignedInfo con RSA-SHA256
+  const sign = crypto.createSign('RSA-SHA256');
+  sign.update(c14n(signedInfo));
+  const signatureValue = sign.sign(forge.pki.privateKeyToPem(privateKey), 'base64');
 
-  // 8. Ensamblar ds:Signature completo
+  // 7. Ensamblar ds:Signature completo
   const dsSignature =
     `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="Signature">` +
-    signedInfo.replace(` xmlns:ds="http://www.w3.org/2000/09/xmldsig#"`, '') +
+    signedInfo +
     `<ds:SignatureValue Id="SignatureValue">${signatureValue}</ds:SignatureValue>` +
     `<ds:KeyInfo Id="Certificate">` +
     `<ds:X509Data>` +
@@ -145,14 +130,15 @@ export function firmarXml(xmlSinFirmar: string, p12Base64: string, password: str
     `</ds:KeyInfo>` +
     `<ds:Object Id="Signature-xades">` +
     `<xades:QualifyingProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Target="#Signature">` +
-    signedPropsDigestable
-      .replace(` xmlns:ds="http://www.w3.org/2000/09/xmldsig#"`, '')
-      .replace(` xmlns:xades="http://uri.etsi.org/01903/v1.3.2#"`, '') +
+    signedPropsDigestable +
     `</xades:QualifyingProperties>` +
     `</ds:Object>` +
     `</ds:Signature>`;
 
-  // 9. Insertar la firma antes del cierre de la etiqueta raíz
+  // 8. Insertar la firma antes del cierre de la etiqueta raíz
   const lastClose = xmlSinFirmar.lastIndexOf('</');
+  if (lastClose === -1) {
+    throw new Error('No se encontró la etiqueta de cierre de la raíz en el XML.');
+  }
   return xmlSinFirmar.slice(0, lastClose) + dsSignature + xmlSinFirmar.slice(lastClose);
 }
