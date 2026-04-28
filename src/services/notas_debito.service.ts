@@ -1,0 +1,380 @@
+import {
+  NotaDebitoModel,
+  NotaDebitoCreateData,
+  NotaDebitoUpdateData,
+  DetalleNDInput,
+  generarClaveAccesoND,
+} from '../models/notas_debito.model';
+import { EmpresaModel } from '../models/empresas.model';
+import { SecuencialModel } from '../models/secuenciales.model';
+import { ClienteModel } from '../models/clientes.model';
+import { FacturaModel } from '../models/facturas.model';
+import { FirmaService } from './firmas_electronicas.service';
+import { generarXmlNotaDebito } from '../utils/xml-nota-debito';
+import { firmarXml } from '../utils/firma-sri';
+import { enviarRecepcion, consultarConReintentos } from '../utils/sri-client';
+
+const ESTADOS_VALIDOS = ['BORRADOR', 'ENVIADO', 'AUTORIZADO', 'RECHAZADA', 'ANULADA'];
+const CODIGOS_IVA_VALIDOS = ['0', '2', '3', '4', '5'];
+
+function round4(n: number): number {
+  return Math.round(n * 10000) / 10000;
+}
+
+function parseMotivos(raw: unknown[]): DetalleNDInput[] {
+  const motivos: DetalleNDInput[] = [];
+
+  for (let i = 0; i < raw.length; i++) {
+    const d = raw[i] as Record<string, unknown>;
+    const orden = i + 1;
+
+    const razon = typeof d['razon'] === 'string' ? d['razon'].trim() : '';
+    if (!razon) throw new Error(`Motivo ${orden}: 'razon' es requerido.`);
+
+    const valor = Number(d['valor']);
+    if (isNaN(valor) || valor <= 0)
+      throw new Error(`Motivo ${orden}: 'valor' debe ser mayor a 0.`);
+
+    motivos.push({ razon, valor: round4(valor), orden });
+  }
+
+  return motivos;
+}
+
+function calcularTotales(
+  motivos: DetalleNDInput[],
+  porcentajeIva: number
+): { subtotal: number; iva_total: number; total: number } {
+  const subtotal = round4(motivos.reduce((sum, m) => sum + m.valor, 0));
+  const iva_total = round4(subtotal * (porcentajeIva / 100));
+  const total = round4(subtotal + iva_total);
+  return { subtotal, iva_total, total };
+}
+
+async function resolverFacturaRef(
+  body: Record<string, unknown>,
+  empresaId: number
+): Promise<{
+  id_factura_ref: number | null;
+  factura_ref_numero: string | null;
+  factura_ref_fecha: string | null;
+  factura_ref_autorizacion: string | null;
+}> {
+  if (body['id_factura_ref']) {
+    const id_factura_ref = Number(body['id_factura_ref']);
+    if (isNaN(id_factura_ref)) throw new Error('id_factura_ref inválido.');
+    const factura = await FacturaModel.findById(id_factura_ref);
+    if (!factura || factura.id_empresa !== empresaId)
+      throw new Error('Factura de referencia no encontrada o no pertenece a la empresa.');
+    return {
+      id_factura_ref,
+      factura_ref_numero: factura.numero_comprobante,
+      factura_ref_fecha: factura.fecha_emision,
+      factura_ref_autorizacion: factura.numero_autorizacion,
+    };
+  }
+
+  const factura_ref_numero = typeof body['factura_ref_numero'] === 'string' ? body['factura_ref_numero'].trim() : null;
+  const factura_ref_fecha = typeof body['factura_ref_fecha'] === 'string' ? body['factura_ref_fecha'].trim() : null;
+  const factura_ref_autorizacion = typeof body['factura_ref_autorizacion'] === 'string' ? body['factura_ref_autorizacion'].trim() : null;
+
+  if (!factura_ref_numero) throw new Error('Se requiere id_factura_ref o factura_ref_numero.');
+  if (!factura_ref_fecha) throw new Error('Se requiere factura_ref_fecha (YYYY-MM-DD).');
+  if (!factura_ref_autorizacion) throw new Error('Se requiere factura_ref_autorizacion.');
+
+  return { id_factura_ref: null, factura_ref_numero, factura_ref_fecha, factura_ref_autorizacion };
+}
+
+async function resolverCliente(
+  body: Record<string, unknown>,
+  empresaId: number
+): Promise<{ id_cliente: number | null; cli_identificacion: string; cli_razon_social: string }> {
+  if (body['id_cliente']) {
+    const id_cliente = Number(body['id_cliente']);
+    const cliente = await ClienteModel.findById(id_cliente);
+    if (!cliente || cliente.id_empresa !== empresaId)
+      throw new Error('Cliente no encontrado o no pertenece a la empresa.');
+    return { id_cliente, cli_identificacion: cliente.identificacion, cli_razon_social: cliente.razon_social };
+  }
+
+  if (!body['cli_identificacion'] || typeof body['cli_identificacion'] !== 'string')
+    throw new Error('Se requiere id_cliente o cli_identificacion.');
+  if (!body['cli_razon_social'] || typeof body['cli_razon_social'] !== 'string')
+    throw new Error('Se requiere id_cliente o cli_razon_social.');
+
+  return {
+    id_cliente: null,
+    cli_identificacion: (body['cli_identificacion'] as string).trim(),
+    cli_razon_social: (body['cli_razon_social'] as string).trim(),
+  };
+}
+
+export const NotaDebitoService = {
+  async listar(empresaId: number, query: Record<string, string | undefined>) {
+    const estado = query['estado']?.toUpperCase();
+    if (estado && estado !== 'TODOS' && !ESTADOS_VALIDOS.includes(estado))
+      throw new Error(`Estado inválido. Válidos: ${ESTADOS_VALIDOS.join(', ')}.`);
+
+    return NotaDebitoModel.findAllByEmpresa(empresaId, {
+      estado: estado === 'TODOS' ? undefined : estado,
+      fecha_desde: query['fecha_desde'],
+      fecha_hasta: query['fecha_hasta'],
+      search: query['search'],
+    });
+  },
+
+  async verDetalle(id: number, empresaId: number) {
+    const nd = await NotaDebitoModel.findByIdConDetalles(id);
+    if (!nd) throw new Error('Nota de débito no encontrada.');
+    if (nd.id_empresa !== empresaId) throw new Error('No tienes permiso sobre esta nota de débito.');
+    return nd;
+  },
+
+  async crear(empresaId: number, usuarioId: number, body: Record<string, unknown>) {
+    const id_punto_emision = Number(body['id_punto_emision']);
+    if (!id_punto_emision || isNaN(id_punto_emision))
+      throw new Error('El campo id_punto_emision es requerido.');
+
+    const puntoEmision = await NotaDebitoModel.findPuntoEmision(id_punto_emision, empresaId);
+    if (!puntoEmision) throw new Error('Punto de emisión no encontrado o no pertenece a la empresa.');
+    if (puntoEmision.estado !== 'ACTIVO') throw new Error('El punto de emisión no está activo.');
+
+    const empresa = await EmpresaModel.findById(empresaId);
+    if (!empresa) throw new Error('Empresa no encontrada.');
+    if (!empresa.ambiente) throw new Error('La empresa no tiene ambiente configurado.');
+
+    const secuencial = await SecuencialModel.findByUnique(id_punto_emision, '05', empresa.ambiente);
+    if (!secuencial)
+      throw new Error('No existe un secuencial de notas de débito para este punto de emisión. Configúrelo primero.');
+    if (secuencial.estado !== 'ACTIVO') throw new Error('El secuencial de notas de débito no está activo.');
+
+    const motivo = typeof body['motivo'] === 'string' ? body['motivo'].trim() : '';
+    if (!motivo) throw new Error('El campo motivo es requerido.');
+
+    const codigo_iva = body['codigo_iva'] !== undefined ? String(body['codigo_iva']) : '4';
+    if (!CODIGOS_IVA_VALIDOS.includes(codigo_iva))
+      throw new Error(`'codigo_iva' inválido. Válidos: ${CODIGOS_IVA_VALIDOS.join(', ')}.`);
+
+    const porcentaje_iva = body['porcentaje_iva'] !== undefined ? Number(body['porcentaje_iva']) : 15;
+    if (isNaN(porcentaje_iva) || porcentaje_iva < 0)
+      throw new Error("'porcentaje_iva' inválido.");
+
+    const facturaRef = await resolverFacturaRef(body, empresaId);
+    const clienteData = await resolverCliente(body, empresaId);
+
+    if (!Array.isArray(body['motivos']) || (body['motivos'] as unknown[]).length === 0)
+      throw new Error('Se requiere al menos un motivo en la nota de débito.');
+    const motivos = parseMotivos(body['motivos'] as unknown[]);
+
+    const fecha_emision =
+      typeof body['fecha_emision'] === 'string'
+        ? body['fecha_emision']
+        : new Date().toISOString().split('T')[0]!;
+
+    const totales = calcularTotales(motivos, porcentaje_iva);
+
+    const createData: NotaDebitoCreateData = {
+      id_empresa: empresaId,
+      id_usuario: usuarioId,
+      id_cliente: clienteData.id_cliente,
+      id_factura_ref: facturaRef.id_factura_ref,
+      id_punto_emision,
+      id_ambiente: empresa.ambiente,
+      factura_ref_numero: facturaRef.factura_ref_numero,
+      factura_ref_fecha: facturaRef.factura_ref_fecha,
+      factura_ref_autorizacion: facturaRef.factura_ref_autorizacion,
+      cod_establecimiento: puntoEmision.cod_establecimiento,
+      cod_punto_emision: puntoEmision.cod_punto_emision,
+      cli_identificacion: clienteData.cli_identificacion,
+      cli_razon_social: clienteData.cli_razon_social,
+      fecha_emision,
+      motivo,
+      ruc: empresa.ruc!,
+      ...totales,
+      detalles: motivos,
+    };
+
+    return NotaDebitoModel.create(createData);
+  },
+
+  async editar(id: number, empresaId: number, body: Record<string, unknown>) {
+    const nd = await NotaDebitoModel.findById(id);
+    if (!nd) throw new Error('Nota de débito no encontrada.');
+    if (nd.id_empresa !== empresaId) throw new Error('No tienes permiso sobre esta nota de débito.');
+    if (!['BORRADOR', 'RECHAZADA'].includes(nd.estado))
+      throw new Error('Solo se pueden editar notas de débito en estado BORRADOR o RECHAZADA.');
+
+    const motivo = typeof body['motivo'] === 'string' ? body['motivo'].trim() : nd.motivo;
+    if (!motivo) throw new Error('El campo motivo es requerido.');
+
+    const codigo_iva = body['codigo_iva'] !== undefined ? String(body['codigo_iva']) : '4';
+    if (!CODIGOS_IVA_VALIDOS.includes(codigo_iva))
+      throw new Error(`'codigo_iva' inválido. Válidos: ${CODIGOS_IVA_VALIDOS.join(', ')}.`);
+
+    const porcentaje_iva = body['porcentaje_iva'] !== undefined ? Number(body['porcentaje_iva']) : 15;
+    if (isNaN(porcentaje_iva) || porcentaje_iva < 0)
+      throw new Error("'porcentaje_iva' inválido.");
+
+    const facturaRef = await resolverFacturaRef(body, empresaId);
+    const clienteData = await resolverCliente(body, empresaId);
+
+    if (!Array.isArray(body['motivos']) || (body['motivos'] as unknown[]).length === 0)
+      throw new Error('Se requiere al menos un motivo en la nota de débito.');
+    const motivos = parseMotivos(body['motivos'] as unknown[]);
+
+    const fecha_emision =
+      typeof body['fecha_emision'] === 'string' ? body['fecha_emision'] : nd.fecha_emision;
+
+    const totales = calcularTotales(motivos, porcentaje_iva);
+
+    const updateData: NotaDebitoUpdateData = {
+      id_cliente: clienteData.id_cliente,
+      id_factura_ref: facturaRef.id_factura_ref,
+      factura_ref_numero: facturaRef.factura_ref_numero,
+      factura_ref_fecha: facturaRef.factura_ref_fecha,
+      factura_ref_autorizacion: facturaRef.factura_ref_autorizacion,
+      cli_identificacion: clienteData.cli_identificacion,
+      cli_razon_social: clienteData.cli_razon_social,
+      fecha_emision,
+      motivo,
+      ...totales,
+      detalles: motivos,
+    };
+
+    const updated = await NotaDebitoModel.update(id, empresaId, updateData);
+    if (!updated) throw new Error('No se pudo actualizar la nota de débito.');
+    return updated;
+  },
+
+  async eliminar(id: number, empresaId: number) {
+    const nd = await NotaDebitoModel.findById(id);
+    if (!nd) throw new Error('Nota de débito no encontrada.');
+    if (nd.id_empresa !== empresaId) throw new Error('No tienes permiso sobre esta nota de débito.');
+    if (nd.estado !== 'BORRADOR') throw new Error('Solo se pueden eliminar notas de débito en estado BORRADOR.');
+
+    const ok = await NotaDebitoModel.delete(id);
+    if (!ok) throw new Error('No se pudo eliminar la nota de débito.');
+    return { message: 'Nota de débito eliminada correctamente.' };
+  },
+
+  async emitir(id: number, empresaId: number) {
+    const nd = await NotaDebitoModel.findByIdConDetalles(id);
+    if (!nd) throw new Error('Nota de débito no encontrada.');
+    if (nd.id_empresa !== empresaId) throw new Error('No tienes permiso sobre esta nota de débito.');
+    if (!['BORRADOR', 'RECHAZADA'].includes(nd.estado))
+      throw new Error('Solo se pueden emitir notas de débito en estado BORRADOR o RECHAZADA.');
+    if (!nd.clave_acceso) throw new Error('La nota de débito no tiene clave de acceso generada.');
+    if (!nd.factura_ref_numero) throw new Error('La nota de débito no tiene número de documento de referencia.');
+    if (!nd.factura_ref_fecha) throw new Error('La nota de débito no tiene fecha del documento de referencia.');
+
+    const empresa = await EmpresaModel.findById(empresaId);
+    if (!empresa) throw new Error('Empresa no encontrada.');
+    if (!empresa.ruc) throw new Error('La empresa no tiene RUC configurado.');
+    if (!empresa.ambiente) throw new Error('La empresa no tiene ambiente configurado.');
+
+    const firma = await FirmaService.getActivaParaFirmar(empresaId);
+    if (!firma) throw new Error('No hay firma electrónica activa. Configúrela en Empresa > Firma Electrónica.');
+
+    if (nd.estado === 'RECHAZADA') {
+      const nuevaClave = generarClaveAccesoND(
+        nd.fecha_emision,
+        empresa.ruc!,
+        empresa.ambiente,
+        nd.cod_establecimiento,
+        nd.cod_punto_emision,
+        nd.secuencial
+      );
+      await NotaDebitoModel.actualizarClaveAcceso(id, nuevaClave);
+      nd.clave_acceso = nuevaClave;
+    }
+
+    const dirEstablecimiento = await NotaDebitoModel.findDireccionEstablecimiento(nd.id_punto_emision);
+
+    const xmlSinFirmar = generarXmlNotaDebito(nd, empresa, dirEstablecimiento);
+
+    let xmlFirmado: string;
+    try {
+      xmlFirmado = firmarXml(xmlSinFirmar, firma.archivo_p12, firma.password);
+    } catch (e: any) {
+      throw new Error(`Error al firmar el XML: ${e.message}`);
+    }
+
+    const xmlBase64 = Buffer.from(xmlFirmado, 'utf8').toString('base64');
+
+    let recepcionEstado: string;
+    let recepcionMensajes: string[];
+    try {
+      const recepcion = await enviarRecepcion(xmlBase64, nd.id_ambiente);
+      recepcionEstado = recepcion.estado;
+      recepcionMensajes = recepcion.mensajes;
+    } catch (e: any) {
+      throw new Error(`Error al conectar con el SRI: ${e.message}`);
+    }
+
+    if (recepcionEstado !== 'RECIBIDA') {
+      const motivoRechazo = recepcionMensajes.length > 0
+        ? recepcionMensajes.join(' | ')
+        : `Respuesta inesperada del SRI en recepción: "${recepcionEstado || 'sin respuesta'}"`;
+      await NotaDebitoModel.actualizarEmision(id, {
+        xml_generado: xmlFirmado,
+        xml_autorizado: '',
+        numero_autorizacion: '',
+        fecha_autorizacion: null,
+        estado: 'RECHAZADA',
+        respuesta_sri: motivoRechazo,
+        motivo_rechazo: motivoRechazo,
+      });
+      throw new Error(`Comprobante no recibido por el SRI: ${motivoRechazo}`);
+    }
+
+    let autorizacion;
+    try {
+      autorizacion = await consultarConReintentos(nd.clave_acceso, nd.id_ambiente);
+    } catch (e: any) {
+      await NotaDebitoModel.actualizarEmision(id, {
+        xml_generado: xmlFirmado,
+        xml_autorizado: '',
+        numero_autorizacion: '',
+        fecha_autorizacion: null,
+        estado: 'ENVIADO',
+        respuesta_sri: null,
+        motivo_rechazo: null,
+      });
+      throw new Error(`Nota de débito enviada al SRI pero no se pudo consultar autorización: ${e.message}`);
+    }
+
+    const nuevoEstado =
+      autorizacion.estado === 'AUTORIZADO' ? 'AUTORIZADO' :
+      autorizacion.estado === 'EN PROCESAMIENTO' ? 'ENVIADO' : 'RECHAZADA';
+
+    return NotaDebitoModel.actualizarEmision(id, {
+      xml_generado: xmlFirmado,
+      xml_autorizado: autorizacion.xmlAutorizado,
+      numero_autorizacion: autorizacion.numeroAutorizacion,
+      fecha_autorizacion: autorizacion.fechaAutorizacion || null,
+      estado: nuevoEstado,
+      respuesta_sri: autorizacion.mensajes.length > 0 ? autorizacion.mensajes.join(' | ') : null,
+      motivo_rechazo: nuevoEstado === 'RECHAZADA'
+        ? (autorizacion.mensajes.join(' | ') || `Estado SRI: ${autorizacion.estado || 'sin respuesta'}`)
+        : null,
+    });
+  },
+
+  async cambiarEstado(id: number, empresaId: number, body: Record<string, unknown>) {
+    const nd = await NotaDebitoModel.findById(id);
+    if (!nd) throw new Error('Nota de débito no encontrada.');
+    if (nd.id_empresa !== empresaId) throw new Error('No tienes permiso sobre esta nota de débito.');
+
+    const nuevoEstado = typeof body['estado'] === 'string' ? body['estado'].toUpperCase() : '';
+    if (!ESTADOS_VALIDOS.includes(nuevoEstado))
+      throw new Error(`Estado inválido. Válidos: ${ESTADOS_VALIDOS.join(', ')}.`);
+    if (nd.estado === nuevoEstado)
+      throw new Error(`La nota de débito ya se encuentra en estado ${nuevoEstado}.`);
+    if (nd.estado !== 'BORRADOR' && nuevoEstado !== 'ANULADA')
+      throw new Error('Solo se puede anular una nota de débito que no está en BORRADOR.');
+
+    const actualizada = await NotaDebitoModel.cambiarEstado(id, nuevoEstado);
+    if (!actualizada) throw new Error('No se pudo actualizar el estado.');
+    return actualizada;
+  },
+};

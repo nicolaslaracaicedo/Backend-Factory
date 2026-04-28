@@ -482,6 +482,13 @@ export const FacturaModel = {
     return result.rows[0]?.direccion ?? '';
   },
 
+  async actualizarClaveAcceso(id: number, claveAcceso: string): Promise<void> {
+    await pool.query(
+      'UPDATE facturas SET clave_acceso = $1, updated_at = NOW() WHERE id = $2',
+      [claveAcceso, id]
+    );
+  },
+
   async actualizarEmision(
     id: number,
     data: {

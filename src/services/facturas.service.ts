@@ -4,6 +4,7 @@ import {
   FacturaUpdateData,
   DetalleInput,
   DatoAdicionalInput,
+  generarClaveAcceso,
 } from '../models/facturas.model';
 import { EmpresaModel } from '../models/empresas.model';
 import { FirmaService } from './firmas_electronicas.service';
@@ -442,6 +443,20 @@ export const FacturaService = {
 
     const firma = await FirmaService.getActivaParaFirmar(empresaId);
     if (!firma) throw new Error('No hay firma electrónica activa. Configúrela en Empresa > Firma Electrónica.');
+
+    // Si la factura fue rechazada, regenerar clave de acceso para evitar el error 43 del SRI
+    if (factura.estado === 'RECHAZADA') {
+      const nuevaClave = generarClaveAcceso(
+        factura.fecha_emision,
+        empresa.ruc!,
+        empresa.ambiente,
+        factura.cod_establecimiento,
+        factura.cod_punto_emision,
+        factura.secuencial
+      );
+      await FacturaModel.actualizarClaveAcceso(id, nuevaClave);
+      factura.clave_acceso = nuevaClave;
+    }
 
     const dirEstablecimiento = await FacturaModel.findDireccionEstablecimiento(factura.id_punto_emision);
 

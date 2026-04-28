@@ -18,6 +18,8 @@ import productosRoutes from './routes/productos.routes';
 import codigosIvaRoutes from './routes/codigos_iva.routes';
 import facturasRoutes from './routes/facturas.routes';
 import notasCreditoRoutes from './routes/notas_credito.routes';
+import notasDebitoRoutes from './routes/notas_debito.routes';
+import usuariosRoutes from './routes/usuarios.routes';
 
 dotenv.config();
 
@@ -77,6 +79,12 @@ app.use('/api/facturas', facturasRoutes);
 
 // RUTAS NOTAS DE CRÉDITO
 app.use('/api/notas-credito', notasCreditoRoutes);
+
+// RUTAS NOTAS DE DÉBITO
+app.use('/api/notas-debito', notasDebitoRoutes);
+
+// RUTAS USUARIOS
+app.use('/api/usuarios', usuariosRoutes);
 
 pool.query('SELECT 1')
   .then(() => {

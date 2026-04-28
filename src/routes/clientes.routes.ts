@@ -1,14 +1,15 @@
 import { Router } from 'express';
 import { ClienteController } from '../controllers/clientes.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
+import { adminYFacturador, todosLosRoles } from '../middlewares/role.middleware';
 
 const router = Router();
 
-router.get('/tipos-identificacion', authMiddleware, ClienteController.tiposIdentificacion);
-router.get('/', authMiddleware, ClienteController.listar);
-router.get('/:id', authMiddleware, ClienteController.verDetalle);
-router.post('/', authMiddleware, ClienteController.crear);
-router.put('/:id', authMiddleware, ClienteController.editar);
-router.patch('/:id/estado', authMiddleware, ClienteController.cambiarEstado);
+router.get('/tipos-identificacion', authMiddleware, todosLosRoles,    ClienteController.tiposIdentificacion);
+router.get('/',                     authMiddleware, todosLosRoles,    ClienteController.listar);
+router.get('/:id',                  authMiddleware, todosLosRoles,    ClienteController.verDetalle);
+router.post('/',                    authMiddleware, adminYFacturador, ClienteController.crear);
+router.put('/:id',                  authMiddleware, adminYFacturador, ClienteController.editar);
+router.patch('/:id/estado',         authMiddleware, adminYFacturador, ClienteController.cambiarEstado);
 
 export default router;

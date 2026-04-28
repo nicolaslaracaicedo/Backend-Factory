@@ -398,6 +398,7 @@ CREATE TABLE notas_debito (
   id_usuario               INT NOT NULL REFERENCES usuarios(id),
   id_factura_ref           INT REFERENCES facturas(id),
   id_punto_emision         INT NOT NULL REFERENCES puntos_emision(id),
+  id_ambiente              SMALLINT NOT NULL REFERENCES ambiente(id),
   factura_ref_numero       VARCHAR(17),
   factura_ref_fecha        DATE,
   factura_ref_autorizacion VARCHAR(49),

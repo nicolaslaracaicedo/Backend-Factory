@@ -382,6 +382,13 @@ export const NotaCreditoModel = {
     return result.rows[0]?.direccion ?? '';
   },
 
+  async actualizarClaveAcceso(id: number, claveAcceso: string): Promise<void> {
+    await pool.query(
+      'UPDATE notas_credito SET clave_acceso = $1, updated_at = NOW() WHERE id = $2',
+      [claveAcceso, id]
+    );
+  },
+
   async delete(id: number): Promise<boolean> {
     const result = await pool.query('DELETE FROM notas_credito WHERE id = $1', [id]);
     return (result.rowCount ?? 0) > 0;

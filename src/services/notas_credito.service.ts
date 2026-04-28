@@ -3,6 +3,7 @@ import {
   NotaCreditoCreateData,
   NotaCreditoUpdateData,
   DetalleNCInput,
+  generarClaveAccesoNC,
 } from '../models/notas_credito.model';
 import { EmpresaModel } from '../models/empresas.model';
 import { SecuencialModel } from '../models/secuenciales.model';
@@ -366,6 +367,19 @@ export const NotaCreditoService = {
 
     const firma = await FirmaService.getActivaParaFirmar(empresaId);
     if (!firma) throw new Error('No hay firma electrónica activa. Configúrela en Empresa > Firma Electrónica.');
+
+    if (nc.estado === 'RECHAZADA') {
+      const nuevaClave = generarClaveAccesoNC(
+        nc.fecha_emision,
+        empresa.ruc!,
+        empresa.ambiente,
+        nc.cod_establecimiento,
+        nc.cod_punto_emision,
+        nc.secuencial
+      );
+      await NotaCreditoModel.actualizarClaveAcceso(id, nuevaClave);
+      nc.clave_acceso = nuevaClave;
+    }
 
     const dirEstablecimiento = await NotaCreditoModel.findDireccionEstablecimiento(nc.id_punto_emision);
 
