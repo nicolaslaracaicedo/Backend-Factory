@@ -1,21 +1,23 @@
 import forge from 'node-forge';
 import crypto from 'crypto';
+import { DOMParser } from '@xmldom/xmldom';
+import { C14nCanonicalization } from 'xml-crypto';
 
-function sha256Base64(data: string, encoding: 'utf8' | 'binary' = 'utf8'): string {
-  const md = forge.md.sha256.create();
-  if (encoding === 'utf8') {
-    md.update(forge.util.encodeUtf8(data));
-  } else {
-    md.update(data);
-  }
-  return forge.util.encode64(md.digest().bytes());
+// Proper inclusive C14N via xml-crypto
+function canonicalize(xmlString: string): string {
+  const doc = new DOMParser().parseFromString(xmlString, 'text/xml');
+  const root = doc.documentElement;
+  if (!root) throw new Error('No se pudo parsear XML para C14N');
+  const c14n = new C14nCanonicalization();
+  return c14n.process(root as unknown as Node, {});
 }
 
-// C14N simplificado
-function c14n(xml: string): string {
-  return xml
-    .replace(/<\?xml[^?]*\?>\s*/g, '')
-    .replace(/<([a-zA-Z0-9_:]+)([^>]*?)\/>/g, '<$1$2></$1>');
+function sha1Base64(data: string): string {
+  return crypto.createHash('sha1').update(Buffer.from(data, 'utf8')).digest('base64');
+}
+
+function sha256Base64Binary(data: string): string {
+  return crypto.createHash('sha256').update(Buffer.from(data, 'binary')).digest('base64');
 }
 
 function parseP12(
@@ -52,26 +54,25 @@ function parseP12(
 }
 
 export function firmarXml(xmlSinFirmar: string, p12Base64: string, password: string): string {
-  // 1. Parsear el P12
+  // 1. Parse P12
   const { cert, privateKey } = parseP12(p12Base64, password);
 
-  // 2. Datos del certificado
+  // 2. Certificate data
   const certDer = forge.asn1.toDer(forge.pki.certificateToAsn1(cert)).bytes();
   const certBase64 = forge.util.encode64(certDer);
-  const certDigest = sha256Base64(certDer, 'binary');
+  const certDigest = sha256Base64Binary(certDer); // SHA256 for certificate (XAdES standard)
 
   const issuerDN = cert.issuer.attributes
     .map((a) => `${a.shortName}=${a.value}`)
     .join(', ');
   const serialDecimal = BigInt('0x' + cert.serialNumber).toString(10);
-  
-  // Hora Ecuador
+
   const now = new Date();
   const ecuadorMs = now.getTime() - 5 * 60 * 60 * 1000;
   const signingTime = new Date(ecuadorMs).toISOString().replace(/\.\d{3}Z$/, '-05:00');
 
-  // 3. SignedProperties
-  const signedPropsDigestable =
+  // 3. SignedProperties — SHA1 digest, xmlns:ds and xmlns:xades declared here
+  const signedPropsXml =
     `<xades:SignedProperties xmlns:ds="http://www.w3.org/2000/09/xmldsig#" ` +
     `xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="SignatureProperties">` +
     `<xades:SignedSignatureProperties>` +
@@ -90,38 +91,39 @@ export function firmarXml(xmlSinFirmar: string, p12Base64: string, password: str
     `</xades:SigningCertificate>` +
     `</xades:SignedSignatureProperties>` +
     `</xades:SignedProperties>`;
-  const spDigest = sha256Base64(c14n(signedPropsDigestable));
+  const spDigest = sha1Base64(canonicalize(signedPropsXml));
 
-  // 4. Digest del documento original
-  const docDigest = sha256Base64(c14n(xmlSinFirmar));
+  // 4. Document digest — SHA1 of canonical document
+  const docDigest = sha1Base64(canonicalize(xmlSinFirmar));
 
-  // 5. SignedInfo CORREGIDO
-  const signedInfo =
+  // 5. SignedInfo — RSA-SHA1, SHA1 digests
+  const signedInfoXml =
     `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">` +
     `<ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>` +
-    `<ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>` +
+    `<ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/>` +
     `<ds:Reference Id="SignedPropertiesID" Type="http://uri.etsi.org/01903#SignedProperties" URI="#SignatureProperties">` +
-    `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>` +
+    `<ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>` +
     `<ds:DigestValue>${spDigest}</ds:DigestValue>` +
     `</ds:Reference>` +
     `<ds:Reference URI="#comprobante">` +
     `<ds:Transforms>` +
     `<ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>` +
     `</ds:Transforms>` +
-    `<ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>` +
+    `<ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>` +
     `<ds:DigestValue>${docDigest}</ds:DigestValue>` +
     `</ds:Reference>` +
     `</ds:SignedInfo>`;
 
-  // 6. Firmar el SignedInfo con RSA-SHA256
-  const sign = crypto.createSign('RSA-SHA256');
-  sign.update(c14n(signedInfo));
+  // 6. Sign canonical SignedInfo with RSA-SHA1
+  const canonicalSignedInfo = canonicalize(signedInfoXml);
+  const sign = crypto.createSign('RSA-SHA1');
+  sign.update(canonicalSignedInfo);
   const signatureValue = sign.sign(forge.pki.privateKeyToPem(privateKey), 'base64');
 
-  // 7. Ensamblar ds:Signature completo
+  // 7. Assemble ds:Signature
   const dsSignature =
     `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="Signature">` +
-    signedInfo +
+    signedInfoXml +
     `<ds:SignatureValue Id="SignatureValue">${signatureValue}</ds:SignatureValue>` +
     `<ds:KeyInfo Id="Certificate">` +
     `<ds:X509Data>` +
@@ -130,15 +132,13 @@ export function firmarXml(xmlSinFirmar: string, p12Base64: string, password: str
     `</ds:KeyInfo>` +
     `<ds:Object Id="Signature-xades">` +
     `<xades:QualifyingProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Target="#Signature">` +
-    signedPropsDigestable +
+    signedPropsXml +
     `</xades:QualifyingProperties>` +
     `</ds:Object>` +
     `</ds:Signature>`;
 
-  // 8. Insertar la firma antes del cierre de la etiqueta raíz
+  // 8. Insert signature before closing root tag
   const lastClose = xmlSinFirmar.lastIndexOf('</');
-  if (lastClose === -1) {
-    throw new Error('No se encontró la etiqueta de cierre de la raíz en el XML.');
-  }
+  if (lastClose === -1) throw new Error('No se encontró la etiqueta de cierre de la raíz en el XML.');
   return xmlSinFirmar.slice(0, lastClose) + dsSignature + xmlSinFirmar.slice(lastClose);
 }

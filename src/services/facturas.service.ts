@@ -93,37 +93,10 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
     const d = raw[i] as Record<string, unknown>;
     const orden = i + 1;
 
-    if (!d['codigo'] || typeof d['codigo'] !== 'string' || d['codigo'].trim() === '')
-      throw new Error(`Detalle ${orden}: 'codigo' es requerido.`);
-    if (!d['descripcion'] || typeof d['descripcion'] !== 'string' || d['descripcion'].trim() === '')
-      throw new Error(`Detalle ${orden}: 'descripcion' es requerido.`);
-
-    const cantidad = Number(d['cantidad']);
-    if (isNaN(cantidad) || cantidad <= 0)
-      throw new Error(`Detalle ${orden}: 'cantidad' debe ser mayor a 0.`);
-
-    const precio_unitario = Number(d['precio_unitario']);
-    if (isNaN(precio_unitario) || precio_unitario < 0)
-      throw new Error(`Detalle ${orden}: 'precio_unitario' debe ser mayor o igual a 0.`);
-
-    const descuento = Number(d['descuento'] ?? 0);
-    if (isNaN(descuento) || descuento < 0)
-      throw new Error(`Detalle ${orden}: 'descuento' no puede ser negativo.`);
-    if (descuento > cantidad * precio_unitario)
-      throw new Error(`Detalle ${orden}: el descuento no puede ser mayor al subtotal bruto.`);
-
-    const codigo_iva = String(d['codigo_iva'] ?? '4');
-    if (!CODIGOS_IVA_VALIDOS.includes(codigo_iva))
-      throw new Error(`Detalle ${orden}: 'codigo_iva' inválido. Válidos: ${CODIGOS_IVA_VALIDOS.join(', ')}.`);
-
-    const porcentaje_iva = Number(d['porcentaje_iva'] ?? 0);
-    if (isNaN(porcentaje_iva) || porcentaje_iva < 0)
-      throw new Error(`Detalle ${orden}: 'porcentaje_iva' inválido.`);
-
-    const valor_ice = Number(d['valor_ice'] ?? 0);
-    const valor_irbpnr = Number(d['valor_irbpnr'] ?? 0);
-
+    // Cargar producto si se provee id_producto y autocompletar campos faltantes
     let id_producto: number | undefined;
+    let productoData: { codigo: string; descripcion: string; unidad_medida: string; precio: number; porcentaje_iva: number; codigo_iva: string } | null = null;
+
     if (d['id_producto'] !== undefined && d['id_producto'] !== null) {
       id_producto = Number(d['id_producto']);
       if (isNaN(id_producto)) throw new Error(`Detalle ${orden}: 'id_producto' inválido.`);
@@ -132,7 +105,60 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
         throw new Error(`Detalle ${orden}: producto no encontrado.`);
       if (producto.estado !== 'ACTIVO')
         throw new Error(`Detalle ${orden}: el producto no está activo.`);
+      productoData = {
+        codigo: producto.codigo,
+        descripcion: producto.descripcion,
+        unidad_medida: producto.unidad_medida,
+        precio: producto.precio,
+        porcentaje_iva: producto.porcentaje_iva,
+        codigo_iva: (producto as any).iva_codigo ?? '4',
+      };
     }
+
+    const codigo = typeof d['codigo'] === 'string' && d['codigo'].trim()
+      ? d['codigo'].trim()
+      : productoData?.codigo ?? '';
+    if (!codigo) throw new Error(`Detalle ${orden}: 'codigo' es requerido.`);
+
+    const descripcion = typeof d['descripcion'] === 'string' && d['descripcion'].trim()
+      ? d['descripcion'].trim()
+      : productoData?.descripcion ?? '';
+    if (!descripcion) throw new Error(`Detalle ${orden}: 'descripcion' es requerido.`);
+
+    const unidad_medida = typeof d['unidad_medida'] === 'string' && d['unidad_medida'].trim()
+      ? d['unidad_medida'].trim()
+      : productoData?.unidad_medida ?? 'UNIDAD';
+
+    const cantidad = Number(d['cantidad']);
+    if (isNaN(cantidad) || cantidad <= 0)
+      throw new Error(`Detalle ${orden}: 'cantidad' debe ser mayor a 0.`);
+
+    const precio_unitario = d['precio_unitario'] !== undefined && d['precio_unitario'] !== null
+      ? Number(d['precio_unitario'])
+      : productoData?.precio ?? NaN;
+    if (isNaN(precio_unitario) || precio_unitario < 0)
+      throw new Error(`Detalle ${orden}: 'precio_unitario' es requerido y debe ser mayor o igual a 0.`);
+
+    const descuento = Number(d['descuento'] ?? 0);
+    if (isNaN(descuento) || descuento < 0)
+      throw new Error(`Detalle ${orden}: 'descuento' no puede ser negativo.`);
+    if (descuento > cantidad * precio_unitario)
+      throw new Error(`Detalle ${orden}: el descuento no puede ser mayor al subtotal bruto.`);
+
+    const codigo_iva = d['codigo_iva'] !== undefined
+      ? String(d['codigo_iva'])
+      : productoData?.codigo_iva ?? '4';
+    if (!CODIGOS_IVA_VALIDOS.includes(codigo_iva))
+      throw new Error(`Detalle ${orden}: 'codigo_iva' inválido. Válidos: ${CODIGOS_IVA_VALIDOS.join(', ')}.`);
+
+    const porcentaje_iva = d['porcentaje_iva'] !== undefined
+      ? Number(d['porcentaje_iva'])
+      : productoData?.porcentaje_iva ?? 0;
+    if (isNaN(porcentaje_iva) || porcentaje_iva < 0)
+      throw new Error(`Detalle ${orden}: 'porcentaje_iva' inválido.`);
+
+    const valor_ice = Number(d['valor_ice'] ?? 0);
+    const valor_irbpnr = Number(d['valor_irbpnr'] ?? 0);
 
     const { subtotal, valor_iva, total } = calcularLinea({
       cantidad, precio_unitario, descuento, porcentaje_iva, valor_ice, valor_irbpnr,
@@ -140,9 +166,9 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
 
     detalles.push({
       id_producto,
-      codigo: (d['codigo'] as string).trim(),
-      descripcion: (d['descripcion'] as string).trim(),
-      unidad_medida: typeof d['unidad_medida'] === 'string' ? d['unidad_medida'].trim() : 'UNIDAD',
+      codigo,
+      descripcion,
+      unidad_medida,
       cantidad,
       precio_unitario,
       descuento,
