@@ -352,7 +352,7 @@ export const FacturaService = {
     const factura = await FacturaModel.findById(id);
     if (!factura) throw new Error('Factura no encontrada.');
     if (factura.id_empresa !== empresaId) throw new Error('No tienes permiso sobre esta factura.');
-    if (factura.estado !== 'BORRADOR') throw new Error('Solo se pueden editar facturas en estado BORRADOR.');
+    if (!['BORRADOR', 'RECHAZADA'].includes(factura.estado)) throw new Error('Solo se pueden editar facturas en estado BORRADOR o RECHAZADA.');
 
     const clienteData = await resolverCliente(body, empresaId);
 
