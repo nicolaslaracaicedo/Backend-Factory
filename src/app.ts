@@ -20,6 +20,7 @@ import facturasRoutes from './routes/facturas.routes';
 import notasCreditoRoutes from './routes/notas_credito.routes';
 import notasDebitoRoutes from './routes/notas_debito.routes';
 import usuariosRoutes from './routes/usuarios.routes';
+import retencionesRoutes from './routes/retenciones.routes';
 
 dotenv.config();
 
@@ -85,6 +86,9 @@ app.use('/api/notas-debito', notasDebitoRoutes);
 
 // RUTAS USUARIOS
 app.use('/api/usuarios', usuariosRoutes);
+
+// RUTAS RETENCIONES
+app.use('/api/retenciones', retencionesRoutes);
 
 pool.query('SELECT 1')
   .then(() => {

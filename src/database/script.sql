@@ -441,7 +441,20 @@ CREATE TABLE detalle_notas_debito (
 );
 
 -- =====================================================
--- 20. RETENCIONES
+-- 20. TIPOS DE RETENCIÓN (catálogo fijo SRI)
+-- =====================================================
+CREATE TABLE tipos_retencion (
+  codigo  VARCHAR(2)   PRIMARY KEY,
+  nombre  VARCHAR(100) NOT NULL
+);
+
+INSERT INTO tipos_retencion (codigo, nombre) VALUES
+  ('1', 'Retención en la Fuente (Renta)'),
+  ('2', 'Retención IVA'),
+  ('6', 'Retención ISD');
+
+-- =====================================================
+-- 21. RETENCIONES
 -- =====================================================
 CREATE TABLE retenciones (
   id                     SERIAL PRIMARY KEY,
@@ -449,6 +462,7 @@ CREATE TABLE retenciones (
   id_usuario             INT NOT NULL REFERENCES usuarios(id),
   id_factura_ref         INT REFERENCES facturas(id),
   id_punto_emision       INT NOT NULL REFERENCES puntos_emision(id),
+  id_ambiente            SMALLINT NOT NULL REFERENCES ambiente(id),
   comprobante_ref_numero VARCHAR(17),
   comprobante_ref_fecha  DATE,
   cod_establecimiento    VARCHAR(3) NOT NULL,
@@ -475,7 +489,7 @@ CREATE TABLE retenciones (
 );
 
 -- =====================================================
--- 21. DETALLE DE RETENCIONES
+-- 22. DETALLE DE RETENCIONES
 -- =====================================================
 CREATE TABLE detalle_retenciones (
   id             SERIAL PRIMARY KEY,
@@ -491,7 +505,7 @@ CREATE TABLE detalle_retenciones (
 );
 
 -- =====================================================
--- 22. GUÍAS DE REMISIÓN
+-- 23. GUÍAS DE REMISIÓN
 -- =====================================================
 CREATE TABLE guias_remision (
   id                         SERIAL PRIMARY KEY,
