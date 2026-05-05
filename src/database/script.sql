@@ -542,6 +542,8 @@ CREATE TABLE guias_remision (
   UNIQUE(id_empresa, cod_establecimiento, cod_punto_emision, secuencial)
 );
 
+
+
 -- =====================================================
 -- 23. DETALLE DE GUÍAS DE REMISIÓN
 -- =====================================================

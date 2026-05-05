@@ -13,7 +13,7 @@ function esc(s: string): string {
 }
 
 function inferirTipoId(identificacion: string): string {
-  if (identificacion === '9999999999') return '07';
+  if (identificacion === '9999999999' || identificacion === '9999999999999') return '07';
   if (identificacion.length === 13) return '04';
   if (identificacion.length === 10) return '05';
   return '06';

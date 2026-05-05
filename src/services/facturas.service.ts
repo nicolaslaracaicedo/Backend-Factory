@@ -14,6 +14,7 @@ import { ProductoModel } from '../models/productos.model';
 import { generarXmlFactura } from '../utils/xml-factura';
 import { firmarXml } from '../utils/firma-sri';
 import { enviarRecepcion, consultarConReintentos } from '../utils/sri-client';
+import { LogSriModel } from '../models/log_sri.model';
 
 const ESTADOS_VALIDOS = ['BORRADOR', 'ENVIADO', 'AUTORIZADO', 'RECHAZADA', 'ANULADA'];
 const CODIGOS_IVA_VALIDOS = ['0', '2', '3', '4', '5'];
@@ -213,6 +214,17 @@ async function resolverCliente(
   cli_telefono: string | null;
   cli_email: string | null;
 }> {
+  if (body['consumidor_final'] === true) {
+    return {
+      id_cliente: null,
+      cli_identificacion: '9999999999',
+      cli_razon_social: 'CONSUMIDOR FINAL',
+      cli_direccion: null,
+      cli_telefono: null,
+      cli_email: null,
+    };
+  }
+
   if (body['id_cliente']) {
     const id_cliente = Number(body['id_cliente']);
     const cliente = await ClienteModel.findById(id_cliente);
@@ -296,7 +308,7 @@ export const FacturaService = {
     if (!empresa) throw new Error('Empresa no encontrada.');
     if (!empresa.ambiente) throw new Error('La empresa no tiene ambiente configurado.');
 
-    const secuencial = await SecuencialModel.findByUnique(id_punto_emision, '01', empresa.ambiente);
+    const secuencial = await SecuencialModel.findByUnique(id_punto_emision, '01');
     if (!secuencial)
       throw new Error('No existe un secuencial de facturas para este punto de emisión. Configúrelo primero.');
     if (secuencial.estado !== 'ACTIVO') throw new Error('El secuencial de facturas no está activo.');
@@ -316,7 +328,7 @@ export const FacturaService = {
     const fecha_emision =
       typeof body['fecha_emision'] === 'string'
         ? body['fecha_emision']
-        : new Date().toISOString().split('T')[0]!;
+        : new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
 
     const totales = calcularTotalesFactura(detalles);
 
@@ -481,6 +493,18 @@ export const FacturaService = {
       throw new Error(`Error al conectar con el SRI: ${e.message}`);
     }
 
+    LogSriModel.registrar({
+      id_empresa: empresaId,
+      tipo_documento: '01',
+      id_documento: id,
+      clave_acceso: factura.clave_acceso,
+      accion: 'RECEPCION',
+      ambiente: empresa.ambiente === 1 ? 'PRUEBAS' : 'PRODUCCION',
+      estado: recepcionEstado,
+      request_xml: xmlFirmado,
+      mensaje: recepcionMensajes.length > 0 ? recepcionMensajes.join(' | ') : null,
+    }).catch(console.error);
+
     if (recepcionEstado !== 'RECIBIDA') {
       const motivo = recepcionMensajes.length > 0
         ? recepcionMensajes.join(' | ')
@@ -517,6 +541,18 @@ export const FacturaService = {
     const nuevoEstado =
       autorizacion.estado === 'AUTORIZADO' ? 'AUTORIZADO' :
       autorizacion.estado === 'EN PROCESAMIENTO' ? 'ENVIADO' : 'RECHAZADA';
+
+    LogSriModel.registrar({
+      id_empresa: empresaId,
+      tipo_documento: '01',
+      id_documento: id,
+      clave_acceso: factura.clave_acceso,
+      accion: 'AUTORIZACION',
+      ambiente: empresa.ambiente === 1 ? 'PRUEBAS' : 'PRODUCCION',
+      estado: autorizacion.estado,
+      response_xml: autorizacion.xmlAutorizado || null,
+      mensaje: autorizacion.mensajes.length > 0 ? autorizacion.mensajes.join(' | ') : null,
+    }).catch(console.error);
 
     const actualizada = await FacturaModel.actualizarEmision(id, {
       xml_generado: xmlFirmado,

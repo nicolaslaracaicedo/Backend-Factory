@@ -21,6 +21,12 @@ import notasCreditoRoutes from './routes/notas_credito.routes';
 import notasDebitoRoutes from './routes/notas_debito.routes';
 import usuariosRoutes from './routes/usuarios.routes';
 import retencionesRoutes from './routes/retenciones.routes';
+import guiasRemisionRoutes from './routes/guias_remision.routes';
+import liquidacionesCompraRoutes from './routes/liquidaciones_compra.routes';
+import proformasRoutes from './routes/proformas.routes';
+import recurrentesRoutes from './routes/recurrentes.routes';
+import logSriRoutes from './routes/log_sri.routes';
+import { iniciarCronRecurrentes } from './utils/cron-recurrentes';
 
 dotenv.config();
 
@@ -90,10 +96,26 @@ app.use('/api/usuarios', usuariosRoutes);
 // RUTAS RETENCIONES
 app.use('/api/retenciones', retencionesRoutes);
 
+// RUTAS GUÍAS DE REMISIÓN
+app.use('/api/guias-remision', guiasRemisionRoutes);
+
+// RUTAS LIQUIDACIONES DE COMPRA
+app.use('/api/liquidaciones-compra', liquidacionesCompraRoutes);
+
+// RUTAS PROFORMAS
+app.use('/api/proformas', proformasRoutes);
+
+// RUTAS RECURRENTES
+app.use('/api/recurrentes', recurrentesRoutes);
+
+// RUTAS LOG SRI
+app.use('/api/log-sri', logSriRoutes);
+
 pool.query('SELECT 1')
   .then(() => {
     app.listen(PORT, () => {
       console.log(`Servidor corriendo en el puerto ${PORT}`);
+      iniciarCronRecurrentes();
     });
   })
   .catch((err: unknown) => {

@@ -13,6 +13,7 @@ import { FirmaService } from './firmas_electronicas.service';
 import { generarXmlRetencion } from '../utils/xml-retencion';
 import { firmarXml } from '../utils/firma-sri';
 import { enviarRecepcion, consultarConReintentos } from '../utils/sri-client';
+import { LogSriModel } from '../models/log_sri.model';
 
 const ESTADOS_VALIDOS = ['BORRADOR', 'ENVIADO', 'AUTORIZADO', 'RECHAZADA', 'ANULADA'];
 const TIPOS_RETENCION_VALIDOS = ['1', '2', '6'];
@@ -137,7 +138,7 @@ export const RetencioneService = {
     if (!empresa) throw new Error('Empresa no encontrada.');
     if (!empresa.ambiente) throw new Error('La empresa no tiene ambiente configurado.');
 
-    const secuencial = await SecuencialModel.findByUnique(id_punto_emision, '07', empresa.ambiente);
+    const secuencial = await SecuencialModel.findByUnique(id_punto_emision, '07');
     if (!secuencial)
       throw new Error('No existe un secuencial de retenciones para este punto de emisión. Configúrelo primero.');
     if (secuencial.estado !== 'ACTIVO') throw new Error('El secuencial de retenciones no está activo.');
@@ -153,7 +154,7 @@ export const RetencioneService = {
 
     const fecha_emision = typeof body['fecha_emision'] === 'string'
       ? body['fecha_emision']
-      : new Date().toISOString().split('T')[0]!;
+      : new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
 
     const createData: RetencionCreateData = {
       id_empresa: empresaId,
@@ -269,6 +270,18 @@ export const RetencioneService = {
       throw new Error(`Error al conectar con el SRI: ${e.message}`);
     }
 
+    LogSriModel.registrar({
+      id_empresa: empresaId,
+      tipo_documento: '07',
+      id_documento: id,
+      clave_acceso: r.clave_acceso,
+      accion: 'RECEPCION',
+      ambiente: empresa.ambiente === 1 ? 'PRUEBAS' : 'PRODUCCION',
+      estado: recepcionEstado,
+      request_xml: xmlFirmado,
+      mensaje: recepcionMensajes.length > 0 ? recepcionMensajes.join(' | ') : null,
+    }).catch(console.error);
+
     if (recepcionEstado !== 'RECIBIDA') {
       const motivo = recepcionMensajes.length > 0
         ? recepcionMensajes.join(' | ')
@@ -294,6 +307,18 @@ export const RetencioneService = {
     const nuevoEstado =
       autorizacion.estado === 'AUTORIZADO' ? 'AUTORIZADO' :
       autorizacion.estado === 'EN PROCESAMIENTO' ? 'ENVIADO' : 'RECHAZADA';
+
+    LogSriModel.registrar({
+      id_empresa: empresaId,
+      tipo_documento: '07',
+      id_documento: id,
+      clave_acceso: r.clave_acceso,
+      accion: 'AUTORIZACION',
+      ambiente: empresa.ambiente === 1 ? 'PRUEBAS' : 'PRODUCCION',
+      estado: autorizacion.estado,
+      response_xml: autorizacion.xmlAutorizado || null,
+      mensaje: autorizacion.mensajes.length > 0 ? autorizacion.mensajes.join(' | ') : null,
+    }).catch(console.error);
 
     return RetencioneModel.actualizarEmision(id, {
       xml_generado: xmlFirmado,

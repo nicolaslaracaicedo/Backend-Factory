@@ -110,6 +110,11 @@ export async function enviarRecepcion(
     `</soapenv:Envelope>`;
 
   const respuesta = await httpPost(url, soap);
+
+  // Detectar SOAP fault antes de parsear el estado normal
+  const faultString = extraer(respuesta, 'faultstring');
+  if (faultString) throw new Error(`Error SOAP del SRI: ${faultString}`);
+
   const estado = extraer(respuesta, 'estado');
   const mensajesBloque = extraer(extraer(respuesta, 'comprobantes'), 'mensajes');
   const mensajes = parsearMensajes(mensajesBloque);

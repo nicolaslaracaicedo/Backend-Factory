@@ -1,5 +1,6 @@
 import { SecuencialModel, SecuencialCreate } from '../models/secuenciales.model';
 import { PuntoEmisionModel } from '../models/puntos_emision.model';
+import { EmpresaModel } from '../models/empresas.model';
 
 const ESTADOS_VALIDOS = ['ACTIVO', 'INACTIVO', 'TODOS'];
 const AMBIENTES_VALIDOS = [1, 2];
@@ -40,13 +41,9 @@ export const SecuencialService = {
   async crear(empresaId: number, body: Record<string, unknown>) {
     const idPuntoEmision = Number(body['id_punto_emision']);
     const tipoDocumento  = body['tipo_documento'];
-    const ambiente       = Number(body['ambiente']);
 
     if (!idPuntoEmision || isNaN(idPuntoEmision)) throw new Error('El id_punto_emision es requerido.');
     if (!tipoDocumento || typeof tipoDocumento !== 'string') throw new Error('El tipo_documento es requerido.');
-    if (!ambiente || isNaN(ambiente) || !AMBIENTES_VALIDOS.includes(ambiente)) {
-      throw new Error('El ambiente debe ser 1 (Pruebas) o 2 (Producción).');
-    }
 
     const tipoValido = await SecuencialModel.findTipoDocumento(tipoDocumento);
     if (!tipoValido) {
@@ -59,14 +56,17 @@ export const SecuencialService = {
     if (!punto) throw new Error('Punto de emisión no encontrado.');
     if (punto.id_empresa !== empresaId) throw new Error('No tienes permiso sobre este punto de emisión.');
 
-    const existe = await SecuencialModel.findByUnique(idPuntoEmision, tipoDocumento, ambiente);
-    if (existe) throw new Error('Ya existe un secuencial para ese punto de emisión, tipo de documento y ambiente.');
+    const empresa = await EmpresaModel.findById(empresaId);
+    if (!empresa?.ambiente) throw new Error('La empresa no tiene ambiente configurado. Configúrelo primero.');
+
+    const existe = await SecuencialModel.findByUnique(idPuntoEmision, tipoDocumento);
+    if (existe) throw new Error('Ya existe un secuencial para ese punto de emisión y tipo de documento en el ambiente actual.');
 
     const data: SecuencialCreate = {
       id_empresa: empresaId,
       id_punto_emision: idPuntoEmision,
       tipo_documento: tipoDocumento,
-      ambiente,
+      ambiente: empresa.ambiente,
     };
 
     return SecuencialModel.create(data);

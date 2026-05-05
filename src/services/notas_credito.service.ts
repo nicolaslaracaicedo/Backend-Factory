@@ -14,6 +14,7 @@ import { FirmaService } from './firmas_electronicas.service';
 import { generarXmlNotaCredito } from '../utils/xml-nota-credito';
 import { firmarXml } from '../utils/firma-sri';
 import { enviarRecepcion, consultarConReintentos } from '../utils/sri-client';
+import { LogSriModel } from '../models/log_sri.model';
 
 const ESTADOS_VALIDOS = ['BORRADOR', 'ENVIADO', 'AUTORIZADO', 'RECHAZADA', 'ANULADA'];
 const CODIGOS_IVA_VALIDOS = ['0', '2', '3', '4', '5'];
@@ -198,6 +199,14 @@ async function resolverCliente(
   body: Record<string, unknown>,
   empresaId: number
 ): Promise<{ id_cliente: number | null; cli_identificacion: string; cli_razon_social: string }> {
+  if (body['consumidor_final'] === true) {
+    return {
+      id_cliente: null,
+      cli_identificacion: '9999999999',
+      cli_razon_social: 'CONSUMIDOR FINAL',
+    };
+  }
+
   if (body['id_cliente']) {
     const id_cliente = Number(body['id_cliente']);
     const cliente = await ClienteModel.findById(id_cliente);
@@ -252,7 +261,7 @@ export const NotaCreditoService = {
     if (!empresa) throw new Error('Empresa no encontrada.');
     if (!empresa.ambiente) throw new Error('La empresa no tiene ambiente configurado.');
 
-    const secuencial = await SecuencialModel.findByUnique(id_punto_emision, '04', empresa.ambiente);
+    const secuencial = await SecuencialModel.findByUnique(id_punto_emision, '04');
     if (!secuencial)
       throw new Error('No existe un secuencial de notas de crédito para este punto de emisión. Configúrelo primero.');
     if (secuencial.estado !== 'ACTIVO') throw new Error('El secuencial de notas de crédito no está activo.');
@@ -270,7 +279,7 @@ export const NotaCreditoService = {
     const fecha_emision =
       typeof body['fecha_emision'] === 'string'
         ? body['fecha_emision']
-        : new Date().toISOString().split('T')[0]!;
+        : new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
 
     const totales = calcularTotales(detalles);
 
@@ -404,6 +413,18 @@ export const NotaCreditoService = {
       throw new Error(`Error al conectar con el SRI: ${e.message}`);
     }
 
+    LogSriModel.registrar({
+      id_empresa: empresaId,
+      tipo_documento: '04',
+      id_documento: id,
+      clave_acceso: nc.clave_acceso,
+      accion: 'RECEPCION',
+      ambiente: empresa.ambiente === 1 ? 'PRUEBAS' : 'PRODUCCION',
+      estado: recepcionEstado,
+      request_xml: xmlFirmado,
+      mensaje: recepcionMensajes.length > 0 ? recepcionMensajes.join(' | ') : null,
+    }).catch(console.error);
+
     if (recepcionEstado !== 'RECIBIDA') {
       const motivo = recepcionMensajes.length > 0
         ? recepcionMensajes.join(' | ')
@@ -439,6 +460,18 @@ export const NotaCreditoService = {
     const nuevoEstado =
       autorizacion.estado === 'AUTORIZADO' ? 'AUTORIZADO' :
       autorizacion.estado === 'EN PROCESAMIENTO' ? 'ENVIADO' : 'RECHAZADA';
+
+    LogSriModel.registrar({
+      id_empresa: empresaId,
+      tipo_documento: '04',
+      id_documento: id,
+      clave_acceso: nc.clave_acceso,
+      accion: 'AUTORIZACION',
+      ambiente: empresa.ambiente === 1 ? 'PRUEBAS' : 'PRODUCCION',
+      estado: autorizacion.estado,
+      response_xml: autorizacion.xmlAutorizado || null,
+      mensaje: autorizacion.mensajes.length > 0 ? autorizacion.mensajes.join(' | ') : null,
+    }).catch(console.error);
 
     return NotaCreditoModel.actualizarEmision(id, {
       xml_generado: xmlFirmado,

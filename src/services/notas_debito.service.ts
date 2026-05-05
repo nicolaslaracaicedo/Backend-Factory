@@ -13,6 +13,7 @@ import { FirmaService } from './firmas_electronicas.service';
 import { generarXmlNotaDebito } from '../utils/xml-nota-debito';
 import { firmarXml } from '../utils/firma-sri';
 import { enviarRecepcion, consultarConReintentos } from '../utils/sri-client';
+import { LogSriModel } from '../models/log_sri.model';
 
 const ESTADOS_VALIDOS = ['BORRADOR', 'ENVIADO', 'AUTORIZADO', 'RECHAZADA', 'ANULADA'];
 const CODIGOS_IVA_VALIDOS = ['0', '2', '3', '4', '5'];
@@ -143,7 +144,7 @@ export const NotaDebitoService = {
     if (!empresa) throw new Error('Empresa no encontrada.');
     if (!empresa.ambiente) throw new Error('La empresa no tiene ambiente configurado.');
 
-    const secuencial = await SecuencialModel.findByUnique(id_punto_emision, '05', empresa.ambiente);
+    const secuencial = await SecuencialModel.findByUnique(id_punto_emision, '05');
     if (!secuencial)
       throw new Error('No existe un secuencial de notas de débito para este punto de emisión. Configúrelo primero.');
     if (secuencial.estado !== 'ACTIVO') throw new Error('El secuencial de notas de débito no está activo.');
@@ -169,7 +170,7 @@ export const NotaDebitoService = {
     const fecha_emision =
       typeof body['fecha_emision'] === 'string'
         ? body['fecha_emision']
-        : new Date().toISOString().split('T')[0]!;
+        : new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
 
     const totales = calcularTotales(motivos, porcentaje_iva);
 
@@ -311,6 +312,18 @@ export const NotaDebitoService = {
       throw new Error(`Error al conectar con el SRI: ${e.message}`);
     }
 
+    LogSriModel.registrar({
+      id_empresa: empresaId,
+      tipo_documento: '05',
+      id_documento: id,
+      clave_acceso: nd.clave_acceso,
+      accion: 'RECEPCION',
+      ambiente: empresa.ambiente === 1 ? 'PRUEBAS' : 'PRODUCCION',
+      estado: recepcionEstado,
+      request_xml: xmlFirmado,
+      mensaje: recepcionMensajes.length > 0 ? recepcionMensajes.join(' | ') : null,
+    }).catch(console.error);
+
     if (recepcionEstado !== 'RECIBIDA') {
       const motivoRechazo = recepcionMensajes.length > 0
         ? recepcionMensajes.join(' | ')
@@ -346,6 +359,18 @@ export const NotaDebitoService = {
     const nuevoEstado =
       autorizacion.estado === 'AUTORIZADO' ? 'AUTORIZADO' :
       autorizacion.estado === 'EN PROCESAMIENTO' ? 'ENVIADO' : 'RECHAZADA';
+
+    LogSriModel.registrar({
+      id_empresa: empresaId,
+      tipo_documento: '05',
+      id_documento: id,
+      clave_acceso: nd.clave_acceso,
+      accion: 'AUTORIZACION',
+      ambiente: empresa.ambiente === 1 ? 'PRUEBAS' : 'PRODUCCION',
+      estado: autorizacion.estado,
+      response_xml: autorizacion.xmlAutorizado || null,
+      mensaje: autorizacion.mensajes.length > 0 ? autorizacion.mensajes.join(' | ') : null,
+    }).catch(console.error);
 
     return NotaDebitoModel.actualizarEmision(id, {
       xml_generado: xmlFirmado,

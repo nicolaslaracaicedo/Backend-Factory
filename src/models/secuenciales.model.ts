@@ -80,10 +80,13 @@ export const SecuencialModel = {
     return result.rows[0] ?? null;
   },
 
-  async findByUnique(puntoEmisionId: number, tipoDocumento: string, ambiente: number): Promise<Secuencial | null> {
+  async findByUnique(puntoEmisionId: number, tipoDocumento: string): Promise<Secuencial | null> {
     const result = await pool.query<Secuencial>(
-      'SELECT * FROM secuenciales WHERE id_punto_emision = $1 AND tipo_documento = $2 AND ambiente = $3',
-      [puntoEmisionId, tipoDocumento, ambiente]
+      `SELECT s.* FROM secuenciales s
+       JOIN puntos_emision pe ON pe.id = s.id_punto_emision
+       JOIN empresas e ON e.id = pe.id_empresa
+       WHERE s.id_punto_emision = $1 AND s.tipo_documento = $2 AND s.ambiente = e.ambiente`,
+      [puntoEmisionId, tipoDocumento]
     );
     return result.rows[0] ?? null;
   },
