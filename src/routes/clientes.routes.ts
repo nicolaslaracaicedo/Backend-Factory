@@ -6,6 +6,7 @@ import { adminYFacturador, todosLosRoles } from '../middlewares/role.middleware'
 const router = Router();
 
 router.get('/tipos-identificacion', authMiddleware, todosLosRoles,    ClienteController.tiposIdentificacion);
+router.get('/buscar',               authMiddleware, todosLosRoles,    ClienteController.buscarPorIdentificacion);
 router.get('/',                     authMiddleware, todosLosRoles,    ClienteController.listar);
 router.get('/:id',                  authMiddleware, todosLosRoles,    ClienteController.verDetalle);
 router.post('/',                    authMiddleware, adminYFacturador, ClienteController.crear);

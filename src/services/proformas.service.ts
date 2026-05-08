@@ -393,6 +393,7 @@ export const ProformaService = {
       codigo_iva: d.codigo_iva,
       porcentaje_iva: Number(d.porcentaje_iva),
       valor_iva: Number(d.valor_iva),
+      porcentaje_ice: 0,
       valor_ice: 0,
       valor_irbpnr: 0,
       total: Number(d.total),
@@ -432,6 +433,8 @@ export const ProformaService = {
       iva_total: Number(proforma.iva_total),
       total: Number(proforma.total),
       observacion: proforma.observaciones,
+      monto_recibido: null,
+      vuelto: null,
       detalles: detallesFactura,
       datos_adicionales: [],
     });

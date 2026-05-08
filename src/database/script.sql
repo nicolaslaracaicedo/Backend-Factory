@@ -288,6 +288,9 @@ CREATE TABLE facturas (
   updated_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(id_empresa, cod_establecimiento, cod_punto_emision, secuencial)
 );
+  ALTER TABLE facturas ADD COLUMN monto_recibido NUMERIC(12,2) DEFAULT NULL;                                                 
+  ALTER TABLE facturas ADD COLUMN vuelto NUMERIC(12,2) DEFAULT NULL; 
+  ALTER TABLE detalle_facturas ADD COLUMN porcentaje_ice NUMERIC(5,2) NOT NULL DEFAULT 0; 
 
 -- =====================================================
 -- 14. DETALLE DE FACTURAS

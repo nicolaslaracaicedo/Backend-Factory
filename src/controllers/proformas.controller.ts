@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import { ProformaService } from '../services/proformas.service';
+import { ProformaModel } from '../models/proformas.model';
+import { EmpresaModel } from '../models/empresas.model';
+import { generarPdfProforma } from '../utils/pdf-proforma';
 
 export const ProformaController = {
   async listar(req: Request, res: Response): Promise<void> {
@@ -85,6 +88,35 @@ export const ProformaController = {
       res.status(201).json({ success: true, data });
     } catch (error: any) {
       res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  async generarPDF(req: Request, res: Response): Promise<void> {
+    try {
+      const id = Number(req.params['id']);
+      const empresaId = req.usuario!.empresaId;
+
+      const proforma = await ProformaModel.findByIdConDetalles(id);
+      if (!proforma || proforma.id_empresa !== empresaId) {
+        res.status(404).json({ success: false, message: 'Proforma no encontrada.' });
+        return;
+      }
+
+      const empresa = await EmpresaModel.findById(empresaId);
+      if (!empresa) {
+        res.status(404).json({ success: false, message: 'Empresa no encontrada.' });
+        return;
+      }
+
+      const buffer = await generarPdfProforma(proforma, empresa);
+
+      const fileName = `proforma-${proforma.numero.replace(/\//g, '-')}.pdf`;
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+      res.setHeader('Content-Length', buffer.length);
+      res.send(buffer);
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 };

@@ -134,6 +134,7 @@ export async function generarFacturaDesdeRecurrente(recurrenteId: number): Promi
       codigo_iva: d.codigo_iva,
       porcentaje_iva,
       valor_iva,
+      porcentaje_ice: 0,
       valor_ice: 0,
       valor_irbpnr: 0,
       total,
@@ -182,6 +183,8 @@ export async function generarFacturaDesdeRecurrente(recurrenteId: number): Promi
     iva_total: round4(ivaTotal),
     total: round4(subtotal_sin_impuesto + ivaTotal),
     observacion: recurrente.descripcion,
+    monto_recibido: null,
+    vuelto: null,
     detalles: detallesFactura,
     datos_adicionales: [],
   });

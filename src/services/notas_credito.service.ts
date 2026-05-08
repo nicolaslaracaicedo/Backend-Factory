@@ -202,7 +202,7 @@ async function resolverCliente(
   if (body['consumidor_final'] === true) {
     return {
       id_cliente: null,
-      cli_identificacion: '9999999999',
+      cli_identificacion: '9999999999999',
       cli_razon_social: 'CONSUMIDOR FINAL',
     };
   }

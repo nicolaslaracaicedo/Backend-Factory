@@ -73,6 +73,8 @@ export interface Factura {
   respuesta_sri: string | null;
   motivo_rechazo: string | null;
   observacion: string | null;
+  monto_recibido: number | null;
+  vuelto: number | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -92,6 +94,7 @@ export interface DetalleFactura {
   codigo_iva: string;
   porcentaje_iva: number;
   valor_iva: number;
+  porcentaje_ice: number;
   valor_ice: number;
   valor_irbpnr: number;
   total: number;
@@ -124,6 +127,7 @@ export interface DetalleInput {
   codigo_iva: string;
   porcentaje_iva: number;
   valor_iva: number;
+  porcentaje_ice: number;
   valor_ice: number;
   valor_irbpnr: number;
   total: number;
@@ -166,6 +170,8 @@ export interface FacturaCreateData {
   iva_total: number;
   total: number;
   observacion: string | null;
+  monto_recibido: number | null;
+  vuelto: number | null;
   ruc: string;
   detalles: DetalleInput[];
   datos_adicionales: DatoAdicionalInput[];
@@ -194,6 +200,8 @@ export interface FacturaUpdateData {
   iva_total: number;
   total: number;
   observacion: string | null;
+  monto_recibido: number | null;
+  vuelto: number | null;
   detalles: DetalleInput[];
   datos_adicionales: DatoAdicionalInput[];
 }
@@ -337,10 +345,10 @@ export const FacturaModel = {
           cli_telefono, cli_email, forma_pago, tipo_pago, dias_plazo, regimen,
           subtotal_sin_impuesto, subtotal_0, subtotal_iva, subtotal_no_objeto_iva,
           subtotal_exento_iva, descuento_total, valor_ice, valor_irbpnr,
-          iva_porcentaje, iva_total, total, observacion
+          iva_porcentaje, iva_total, total, observacion, monto_recibido, vuelto
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-          $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32
+          $20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34
         ) RETURNING *`,
         [
           data.id_empresa, data.id_usuario, data.id_cliente, data.id_punto_emision, data.id_ambiente,
@@ -350,6 +358,7 @@ export const FacturaModel = {
           data.subtotal_sin_impuesto, data.subtotal_0, data.subtotal_iva, data.subtotal_no_objeto_iva,
           data.subtotal_exento_iva, data.descuento_total, data.valor_ice, data.valor_irbpnr,
           data.iva_porcentaje, data.iva_total, data.total, data.observacion,
+          data.monto_recibido ?? null, data.vuelto ?? null,
         ]
       );
       const factura = factResult.rows[0];
@@ -360,12 +369,12 @@ export const FacturaModel = {
           `INSERT INTO detalle_facturas (
             id_factura, id_empresa, id_producto, codigo, descripcion, unidad_medida,
             cantidad, precio_unitario, descuento, subtotal, codigo_iva, porcentaje_iva,
-            valor_iva, valor_ice, valor_irbpnr, total, orden
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+            valor_iva, porcentaje_ice, valor_ice, valor_irbpnr, total, orden
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
           [
             factura.id, data.id_empresa, d.id_producto ?? null, d.codigo, d.descripcion, d.unidad_medida,
             d.cantidad, d.precio_unitario, d.descuento, d.subtotal, d.codigo_iva, d.porcentaje_iva,
-            d.valor_iva, d.valor_ice, d.valor_irbpnr, d.total, d.orden,
+            d.valor_iva, d.porcentaje_ice, d.valor_ice, d.valor_irbpnr, d.total, d.orden,
           ]
         );
         detalles.push(dRes.rows[0]!);
@@ -404,8 +413,9 @@ export const FacturaModel = {
           subtotal_sin_impuesto = $11, subtotal_0 = $12, subtotal_iva = $13,
           subtotal_no_objeto_iva = $14, subtotal_exento_iva = $15, descuento_total = $16,
           valor_ice = $17, valor_irbpnr = $18, iva_porcentaje = $19, iva_total = $20,
-          total = $21, observacion = $22, updated_at = NOW()
-         WHERE id = $23 RETURNING *`,
+          total = $21, observacion = $22, monto_recibido = $23, vuelto = $24,
+          updated_at = NOW()
+         WHERE id = $25 RETURNING *`,
         [
           data.id_cliente, data.cli_identificacion, data.cli_razon_social,
           data.cli_direccion, data.cli_telefono, data.cli_email,
@@ -413,7 +423,7 @@ export const FacturaModel = {
           data.subtotal_sin_impuesto, data.subtotal_0, data.subtotal_iva,
           data.subtotal_no_objeto_iva, data.subtotal_exento_iva, data.descuento_total,
           data.valor_ice, data.valor_irbpnr, data.iva_porcentaje, data.iva_total,
-          data.total, data.observacion, id,
+          data.total, data.observacion, data.monto_recibido ?? null, data.vuelto ?? null, id,
         ]
       );
       const factura = factResult.rows[0];
@@ -426,12 +436,12 @@ export const FacturaModel = {
           `INSERT INTO detalle_facturas (
             id_factura, id_empresa, id_producto, codigo, descripcion, unidad_medida,
             cantidad, precio_unitario, descuento, subtotal, codigo_iva, porcentaje_iva,
-            valor_iva, valor_ice, valor_irbpnr, total, orden
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+            valor_iva, porcentaje_ice, valor_ice, valor_irbpnr, total, orden
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
           [
             id, empresaId, d.id_producto ?? null, d.codigo, d.descripcion, d.unidad_medida,
             d.cantidad, d.precio_unitario, d.descuento, d.subtotal, d.codigo_iva, d.porcentaje_iva,
-            d.valor_iva, d.valor_ice, d.valor_irbpnr, d.total, d.orden,
+            d.valor_iva, d.porcentaje_ice, d.valor_ice, d.valor_irbpnr, d.total, d.orden,
           ]
         );
         detalles.push(dRes.rows[0]!);

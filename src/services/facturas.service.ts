@@ -159,7 +159,14 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
     if (isNaN(porcentaje_iva) || porcentaje_iva < 0)
       throw new Error(`Detalle ${orden}: 'porcentaje_iva' inválido.`);
 
-    const valor_ice = Number(d['valor_ice'] ?? 0);
+    const porcentaje_ice = d['porcentaje_ice'] !== undefined
+      ? Number(d['porcentaje_ice'])
+      : productoData ? (productoData as any).porcentaje_ice ?? 0 : 0;
+
+    const subtotalBruto = round4(cantidad * precio_unitario - descuento);
+    const valor_ice = porcentaje_ice > 0
+      ? round4(subtotalBruto * (porcentaje_ice / 100))
+      : Number(d['valor_ice'] ?? 0);
     const valor_irbpnr = Number(d['valor_irbpnr'] ?? 0);
 
     const { subtotal, valor_iva, total } = calcularLinea({
@@ -178,6 +185,7 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
       codigo_iva,
       porcentaje_iva,
       valor_iva,
+      porcentaje_ice,
       valor_ice,
       valor_irbpnr,
       total,
@@ -217,7 +225,7 @@ async function resolverCliente(
   if (body['consumidor_final'] === true) {
     return {
       id_cliente: null,
-      cli_identificacion: '9999999999',
+      cli_identificacion: '9999999999999',
       cli_razon_social: 'CONSUMIDOR FINAL',
       cli_direccion: null,
       cli_telefono: null,
@@ -332,6 +340,15 @@ export const FacturaService = {
 
     const totales = calcularTotalesFactura(detalles);
 
+    const monto_recibido = body['monto_recibido'] !== undefined && body['monto_recibido'] !== null
+      ? Number(body['monto_recibido'])
+      : null;
+    if (monto_recibido !== null && !isNaN(monto_recibido) && monto_recibido < totales.total)
+      throw new Error(`El monto recibido ($${monto_recibido.toFixed(2)}) es menor al total ($${totales.total.toFixed(2)}).`);
+    const vuelto = monto_recibido !== null && !isNaN(monto_recibido)
+      ? Math.max(0, monto_recibido - totales.total)
+      : null;
+
     const createData: FacturaCreateData = {
       id_empresa: empresaId,
       id_usuario: usuarioId,
@@ -353,6 +370,8 @@ export const FacturaService = {
       ruc: empresa.ruc,
       ...totales,
       observacion: typeof body['observacion'] === 'string' ? body['observacion'].trim() : null,
+      monto_recibido: monto_recibido !== null && !isNaN(monto_recibido) ? monto_recibido : null,
+      vuelto,
       detalles,
       datos_adicionales,
     };
@@ -389,6 +408,15 @@ export const FacturaService = {
 
     const totales = calcularTotalesFactura(detalles);
 
+    const monto_recibido_edit = body['monto_recibido'] !== undefined && body['monto_recibido'] !== null
+      ? Number(body['monto_recibido'])
+      : factura.monto_recibido !== undefined ? factura.monto_recibido : null;
+    if (monto_recibido_edit !== null && !isNaN(Number(monto_recibido_edit)) && Number(monto_recibido_edit) < totales.total)
+      throw new Error(`El monto recibido ($${Number(monto_recibido_edit).toFixed(2)}) es menor al total ($${totales.total.toFixed(2)}).`);
+    const vuelto_edit = monto_recibido_edit !== null && !isNaN(Number(monto_recibido_edit))
+      ? Math.max(0, Number(monto_recibido_edit) - totales.total)
+      : null;
+
     const updateData: FacturaUpdateData = {
       id_cliente: clienteData.id_cliente,
       cli_identificacion: clienteData.cli_identificacion,
@@ -402,6 +430,8 @@ export const FacturaService = {
       dias_plazo: pago.dias_plazo,
       ...totales,
       observacion: typeof body['observacion'] === 'string' ? body['observacion'].trim() : factura.observacion,
+      monto_recibido: monto_recibido_edit !== null && !isNaN(Number(monto_recibido_edit)) ? Number(monto_recibido_edit) : null,
+      vuelto: vuelto_edit,
       detalles,
       datos_adicionales,
     };
