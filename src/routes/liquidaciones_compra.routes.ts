@@ -12,5 +12,6 @@ router.put('/:id',          authMiddleware, adminYFacturador, LiquidacionCompraC
 router.delete('/:id',       authMiddleware, adminYFacturador, LiquidacionCompraController.eliminar);
 router.patch('/:id/estado', authMiddleware, adminYFacturador, LiquidacionCompraController.cambiarEstado);
 router.post('/:id/emitir',  authMiddleware, adminYFacturador, LiquidacionCompraController.emitir);
+router.get('/:id/pdf',      authMiddleware, todosLosRoles,    LiquidacionCompraController.generarPDF);
 
 export default router;

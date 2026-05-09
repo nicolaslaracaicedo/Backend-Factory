@@ -12,5 +12,7 @@ router.put('/:id',          authMiddleware, adminYFacturador, NotaDebitoControll
 router.delete('/:id',       authMiddleware, adminYFacturador, NotaDebitoController.eliminar);
 router.patch('/:id/estado', authMiddleware, adminYFacturador, NotaDebitoController.cambiarEstado);
 router.post('/:id/emitir',  authMiddleware, adminYFacturador, NotaDebitoController.emitir);
+router.get('/:id/pdf',      authMiddleware, todosLosRoles,    NotaDebitoController.generarPDF);
+router.get('/:id/recibo',   authMiddleware, todosLosRoles,    NotaDebitoController.generarRecibo);
 
 export default router;

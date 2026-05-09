@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import { GuiaRemisionService } from '../services/guias_remision.service';
+import { GuiaRemisionModel } from '../models/guias_remision.model';
+import { EmpresaModel } from '../models/empresas.model';
+import { generarPdfGuiaRemision } from '../utils/pdf-guia-remision';
 
 export const GuiaRemisionController = {
   async listar(req: Request, res: Response): Promise<void> {
@@ -80,6 +83,35 @@ export const GuiaRemisionController = {
       res.status(200).json({ success: true, data });
     } catch (error: any) {
       res.status(400).json({ success: false, message: error.message });
+    }
+  },
+
+  async generarPDF(req: Request, res: Response): Promise<void> {
+    try {
+      const id = Number(req.params['id']);
+      const empresaId = req.usuario!.empresaId;
+
+      const gr = await GuiaRemisionModel.findByIdConDetalles(id);
+      if (!gr || gr.id_empresa !== empresaId) {
+        res.status(404).json({ success: false, message: 'Guía de remisión no encontrada.' });
+        return;
+      }
+
+      const empresa = await EmpresaModel.findById(empresaId);
+      if (!empresa) {
+        res.status(404).json({ success: false, message: 'Empresa no encontrada.' });
+        return;
+      }
+
+      const buffer = await generarPdfGuiaRemision(gr, empresa);
+      const numero = (gr.numero_comprobante ?? `gr-${id}`).replace(/\//g, '-');
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${numero}.pdf"`);
+      res.setHeader('Content-Length', buffer.length);
+      res.send(buffer);
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
     }
   },
 };

@@ -23,6 +23,7 @@ import usuariosRoutes from './routes/usuarios.routes';
 import retencionesRoutes from './routes/retenciones.routes';
 import guiasRemisionRoutes from './routes/guias_remision.routes';
 import liquidacionesCompraRoutes from './routes/liquidaciones_compra.routes';
+import notasVentaRoutes from './routes/notas_venta.routes';
 import proformasRoutes from './routes/proformas.routes';
 import recurrentesRoutes from './routes/recurrentes.routes';
 import logSriRoutes from './routes/log_sri.routes';
@@ -101,6 +102,9 @@ app.use('/api/guias-remision', guiasRemisionRoutes);
 
 // RUTAS LIQUIDACIONES DE COMPRA
 app.use('/api/liquidaciones-compra', liquidacionesCompraRoutes);
+
+// RUTAS NOTAS DE VENTA (RISE)
+app.use('/api/notas-venta', notasVentaRoutes);
 
 // RUTAS PROFORMAS
 app.use('/api/proformas', proformasRoutes);

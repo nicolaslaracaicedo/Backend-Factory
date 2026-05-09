@@ -284,13 +284,12 @@ CREATE TABLE facturas (
   respuesta_sri          TEXT,
   motivo_rechazo         TEXT,
   observacion            TEXT,
+  monto_recibido         NUMERIC(12,2) DEFAULT NULL,
+  vuelto                 NUMERIC(12,2) DEFAULT NULL,
   created_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(id_empresa, cod_establecimiento, cod_punto_emision, secuencial)
 );
-  ALTER TABLE facturas ADD COLUMN monto_recibido NUMERIC(12,2) DEFAULT NULL;                                                 
-  ALTER TABLE facturas ADD COLUMN vuelto NUMERIC(12,2) DEFAULT NULL; 
-  ALTER TABLE detalle_facturas ADD COLUMN porcentaje_ice NUMERIC(5,2) NOT NULL DEFAULT 0; 
 
 -- =====================================================
 -- 14. DETALLE DE FACTURAS
@@ -312,6 +311,7 @@ CREATE TABLE detalle_facturas (
   valor_iva       NUMERIC(12,4) DEFAULT 0,
   valor_ice       NUMERIC(12,4) DEFAULT 0,
   valor_irbpnr    NUMERIC(12,4) DEFAULT 0,
+  porcentaje_ice  NUMERIC(5,2) NOT NULL DEFAULT 0,
   total           NUMERIC(12,4) DEFAULT 0,
   orden           INT DEFAULT 1
 );
@@ -620,7 +620,65 @@ CREATE TABLE detalle_liquidaciones_compra (
 );
 
 -- =====================================================
--- 26. PROFORMAS
+-- 26. NOTAS DE VENTA (RISE)
+-- =====================================================
+CREATE TABLE notas_venta (
+  id                    SERIAL PRIMARY KEY,
+  id_empresa            INT NOT NULL REFERENCES empresas(id),
+  id_usuario            INT NOT NULL REFERENCES usuarios(id),
+  id_cliente            INT REFERENCES clientes(id),
+  id_punto_emision      INT NOT NULL REFERENCES puntos_emision(id),
+  id_ambiente           SMALLINT NOT NULL REFERENCES ambiente(id),
+  cod_establecimiento   VARCHAR(3) NOT NULL,
+  cod_punto_emision     VARCHAR(3) NOT NULL,
+  secuencial            VARCHAR(9) NOT NULL,
+  numero_comprobante    VARCHAR(17),
+  clave_acceso          VARCHAR(49) UNIQUE,
+  numero_autorizacion   VARCHAR(49),
+  estado                VARCHAR(20) NOT NULL DEFAULT 'BORRADOR',
+  fecha_emision         DATE NOT NULL DEFAULT CURRENT_DATE,
+  fecha_autorizacion    TIMESTAMP,
+  cli_identificacion    VARCHAR(20),
+  cli_razon_social      VARCHAR(300),
+  cli_direccion         VARCHAR(500),
+  cli_telefono          VARCHAR(20),
+  cli_email             VARCHAR(150),
+  forma_pago            VARCHAR(5) NOT NULL DEFAULT '01',
+  subtotal_sin_impuesto NUMERIC(12,4) DEFAULT 0,
+  descuento_total       NUMERIC(12,4) DEFAULT 0,
+  total                 NUMERIC(12,4) DEFAULT 0,
+  observacion           TEXT,
+  xml_generado          TEXT,
+  xml_autorizado        TEXT,
+  pdf_url               TEXT,
+  respuesta_sri         TEXT,
+  motivo_rechazo        TEXT,
+  created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(id_empresa, cod_establecimiento, cod_punto_emision, secuencial)
+);
+
+-- =====================================================
+-- 27. DETALLE DE NOTAS DE VENTA
+-- =====================================================
+CREATE TABLE detalle_notas_venta (
+  id              SERIAL PRIMARY KEY,
+  id_nota_venta   INT NOT NULL REFERENCES notas_venta(id) ON DELETE CASCADE,
+  id_empresa      INT NOT NULL REFERENCES empresas(id),
+  id_producto     INT REFERENCES productos(id),
+  codigo          VARCHAR(50) NOT NULL,
+  descripcion     VARCHAR(500) NOT NULL,
+  unidad_medida   VARCHAR(30) DEFAULT 'UNIDAD',
+  cantidad        NUMERIC(12,4) NOT NULL DEFAULT 1,
+  precio_unitario NUMERIC(12,4) NOT NULL DEFAULT 0,
+  descuento       NUMERIC(12,4) DEFAULT 0,
+  subtotal        NUMERIC(12,4) DEFAULT 0,
+  total           NUMERIC(12,4) DEFAULT 0,
+  orden           INT DEFAULT 1
+);
+
+-- =====================================================
+-- 28. PROFORMAS
 -- =====================================================
 CREATE TABLE proformas (
   id                    SERIAL PRIMARY KEY,
@@ -837,6 +895,7 @@ INSERT INTO ambiente VALUES
 
 INSERT INTO tipos_documento VALUES
   ('01', 'Factura'),
+  ('02', 'Nota de Venta'),
   ('03', 'Liquidación de Compra'),
   ('04', 'Nota de Crédito'),
   ('05', 'Nota de Débito'),
