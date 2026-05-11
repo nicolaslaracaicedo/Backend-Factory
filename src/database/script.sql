@@ -14,28 +14,39 @@ CREATE TABLE ambiente (
 -- 1. EMPRESAS
 -- =====================================================
 CREATE TABLE empresas (
-  id                     SERIAL PRIMARY KEY,
-  ruc                    VARCHAR(13) NOT NULL UNIQUE,
-  razon_social           VARCHAR(300),
-  nombre_comercial       VARCHAR(300),
-  direccion_matriz       VARCHAR(500),
-  telefono               VARCHAR(20),
-  email                  VARCHAR(150),
-  logo_url               TEXT,
-  color_primario         VARCHAR(7) DEFAULT '#1976D2',
-  color_secundario       VARCHAR(7) DEFAULT '#424242',
-  color_acento           VARCHAR(7) DEFAULT '#FF6F00',
-  fuente_principal       VARCHAR(50) DEFAULT 'Roboto',
-  contribuyente_especial BOOLEAN DEFAULT FALSE,
-  nro_contribuyente_esp  VARCHAR(20),
-  obligado_contabilidad  BOOLEAN DEFAULT FALSE,
-  agente_retencion       BOOLEAN DEFAULT FALSE,
-  rimpe                  BOOLEAN DEFAULT FALSE,
-  regimen                VARCHAR(20) DEFAULT 'GENERAL',
-  ambiente               SMALLINT REFERENCES ambiente(id),
-  estado                 VARCHAR(20) DEFAULT 'ACTIVO',
-  created_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at             TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id                      SERIAL PRIMARY KEY,
+  ruc                     VARCHAR(13) NOT NULL UNIQUE,
+  razon_social            VARCHAR(300),
+  nombre_comercial        VARCHAR(300),
+  direccion_matriz        VARCHAR(500),
+  telefono                VARCHAR(20),
+  email                   VARCHAR(150),
+  logo_url                TEXT,
+
+  color_primario          VARCHAR(7) DEFAULT '#1976D2',
+  color_secundario        VARCHAR(7) DEFAULT '#424242',
+  color_acento            VARCHAR(7) DEFAULT '#FF6F00',
+  fuente_principal        VARCHAR(50) DEFAULT 'Roboto',
+
+  contribuyente_especial  BOOLEAN DEFAULT FALSE,
+  nro_contribuyente_esp   VARCHAR(20),
+  obligado_contabilidad   BOOLEAN DEFAULT FALSE,
+  agente_retencion        BOOLEAN DEFAULT FALSE,
+  rimpe                   BOOLEAN DEFAULT FALSE,
+
+  regimen                 VARCHAR(20) DEFAULT 'GENERAL',
+  ambiente                SMALLINT REFERENCES ambiente(id),
+  estado                  VARCHAR(20) DEFAULT 'ACTIVO',
+
+  smtp_host               VARCHAR(255),
+  smtp_port               INTEGER DEFAULT 587,
+  smtp_user               VARCHAR(255),
+  smtp_password_enc       TEXT,
+  smtp_from_name          VARCHAR(255),
+  smtp_secure             BOOLEAN DEFAULT FALSE,
+
+  created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- =====================================================

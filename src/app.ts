@@ -27,6 +27,7 @@ import notasVentaRoutes from './routes/notas_venta.routes';
 import proformasRoutes from './routes/proformas.routes';
 import recurrentesRoutes from './routes/recurrentes.routes';
 import logSriRoutes from './routes/log_sri.routes';
+import dashboardRoutes from './routes/dashboard.routes';
 import { iniciarCronRecurrentes } from './utils/cron-recurrentes';
 
 dotenv.config();
@@ -114,6 +115,9 @@ app.use('/api/recurrentes', recurrentesRoutes);
 
 // RUTAS LOG SRI
 app.use('/api/log-sri', logSriRoutes);
+
+// RUTAS DASHBOARD
+app.use('/api/dashboard', dashboardRoutes);
 
 pool.query('SELECT 1')
   .then(() => {

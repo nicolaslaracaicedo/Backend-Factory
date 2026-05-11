@@ -5,13 +5,14 @@ import { adminYFacturador, todosLosRoles } from '../middlewares/role.middleware'
 
 const router = Router();
 
-router.get('/',             authMiddleware, todosLosRoles,    RetencioneController.listar);
-router.get('/:id',          authMiddleware, todosLosRoles,    RetencioneController.verDetalle);
-router.post('/',            authMiddleware, adminYFacturador, RetencioneController.crear);
-router.put('/:id',          authMiddleware, adminYFacturador, RetencioneController.editar);
-router.delete('/:id',       authMiddleware, adminYFacturador, RetencioneController.eliminar);
-router.patch('/:id/estado', authMiddleware, adminYFacturador, RetencioneController.cambiarEstado);
-router.post('/:id/emitir',  authMiddleware, adminYFacturador, RetencioneController.emitir);
-router.get('/:id/pdf',      authMiddleware, todosLosRoles,    RetencioneController.generarPDF);
+router.get('/',                   authMiddleware, todosLosRoles,    RetencioneController.listar);
+router.get('/:id',                authMiddleware, todosLosRoles,    RetencioneController.verDetalle);
+router.post('/',                  authMiddleware, adminYFacturador, RetencioneController.crear);
+router.put('/:id',                authMiddleware, adminYFacturador, RetencioneController.editar);
+router.delete('/:id',             authMiddleware, adminYFacturador, RetencioneController.eliminar);
+router.patch('/:id/estado',       authMiddleware, adminYFacturador, RetencioneController.cambiarEstado);
+router.post('/:id/emitir',        authMiddleware, adminYFacturador, RetencioneController.emitir);
+router.get('/:id/pdf',            authMiddleware, todosLosRoles,    RetencioneController.generarPDF);
+router.post('/:id/enviar-correo', authMiddleware, adminYFacturador, RetencioneController.enviarCorreo);
 
 export default router;

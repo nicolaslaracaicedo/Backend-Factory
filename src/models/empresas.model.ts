@@ -18,6 +18,12 @@ export interface EmpresaUpdate {
   rimpe?: boolean;
   regimen?: string;
   ambiente?: number;
+  smtp_host?: string | null;
+  smtp_port?: number | null;
+  smtp_user?: string | null;
+  smtp_password_enc?: string | null;
+  smtp_from_name?: string | null;
+  smtp_secure?: boolean;
 }
 
 export interface Empresa {
@@ -41,6 +47,12 @@ export interface Empresa {
   regimen: string;
   ambiente: number | null;
   estado: string;
+  smtp_host: string | null;
+  smtp_port: number | null;
+  smtp_user: string | null;
+  smtp_password_enc: string | null;
+  smtp_from_name: string | null;
+  smtp_secure: boolean;
   created_at: Date;
   updated_at: Date;
 }
