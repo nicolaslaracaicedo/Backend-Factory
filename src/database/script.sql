@@ -232,6 +232,7 @@ CREATE TABLE productos (
   id_iva          INT NOT NULL,
   tipo            VARCHAR(20) DEFAULT 'PRODUCTO', -- PRODUCTO | SERVICIO
   codigo          VARCHAR(50) NOT NULL,
+  codigo_ice      VARCHAR(10) DEFAULT NULL,
   descripcion     VARCHAR(500) NOT NULL,
   unidad_medida   VARCHAR(30) DEFAULT 'UNIDAD',
   precio          NUMERIC(12,4) NOT NULL DEFAULT 0 CHECK (precio >= 0),
@@ -249,6 +250,7 @@ CREATE TABLE productos (
   FOREIGN KEY (id_iva, id_empresa)
     REFERENCES codigos_iva(id, id_empresa)
 );
+ALTER TABLE productos ADD COLUMN codigo_ice VARCHAR(10) DEFAULT NULL;
 
 -- =====================================================
 -- 13. FACTURAS
@@ -318,6 +320,7 @@ CREATE TABLE detalle_facturas (
   descuento       NUMERIC(12,4) DEFAULT 0,
   subtotal        NUMERIC(12,4) DEFAULT 0,
   codigo_iva      VARCHAR(2) NOT NULL DEFAULT '4',
+  codigo_ice      VARCHAR(10) DEFAULT NULL,
   porcentaje_iva  NUMERIC(5,2) DEFAULT 15.00,
   valor_iva       NUMERIC(12,4) DEFAULT 0,
   valor_ice       NUMERIC(12,4) DEFAULT 0,
@@ -326,6 +329,7 @@ CREATE TABLE detalle_facturas (
   total           NUMERIC(12,4) DEFAULT 0,
   orden           INT DEFAULT 1
 );
+--ALTER TABLE detalle_facturas ADD COLUMN codigo_ice VARCHAR(10) DEFAULT NULL;
 
 -- =====================================================
 -- 15. DATOS ADICIONALES DE FACTURA

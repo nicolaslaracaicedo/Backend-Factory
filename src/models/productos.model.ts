@@ -13,6 +13,7 @@ export interface Producto {
   porcentaje_iva: number;
   tiene_ice: boolean;
   porcentaje_ice: number;
+  codigo_ice: string | null;
   estado: string;
   created_at: Date;
 }
@@ -29,6 +30,7 @@ export interface ProductoCreate {
   porcentaje_iva: number;
   tiene_ice?: boolean;
   porcentaje_ice?: number;
+  codigo_ice?: string | null;
 }
 
 export interface ProductoUpdate {
@@ -41,6 +43,7 @@ export interface ProductoUpdate {
   porcentaje_iva?: number;
   tiene_ice?: boolean;
   porcentaje_ice?: number;
+  codigo_ice?: string | null;
 }
 
 export interface ProductoFiltros {
@@ -121,8 +124,8 @@ export const ProductoModel = {
     const result = await pool.query<Producto>(
       `INSERT INTO productos
          (id_empresa, id_grupo, id_iva, tipo, codigo, descripcion,
-          unidad_medida, precio, porcentaje_iva, tiene_ice, porcentaje_ice)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+          unidad_medida, precio, porcentaje_iva, tiene_ice, porcentaje_ice, codigo_ice)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [
         data.id_empresa,
         data.id_grupo ?? null,
@@ -135,6 +138,7 @@ export const ProductoModel = {
         data.porcentaje_iva,
         data.tiene_ice ?? false,
         data.porcentaje_ice ?? 0,
+        data.codigo_ice ?? null,
       ]
     );
     return result.rows[0]!;

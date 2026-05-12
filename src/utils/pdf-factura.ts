@@ -76,7 +76,7 @@ export async function generarPdfFactura(
   const ivaMainPct = Number(factura.iva_porcentaje) || 15;
 
   let sub0 = 0, subExento = 0, subNoObjeto = 0, subIva = 0;
-  let ice15sub = 0, ice15val = 0, ice10sub = 0, ice10val = 0;
+  const iceMap = new Map<number, { subtotal: number; ice: number }>();
   let ivaTotal = 0, irbpnrTotal = 0;
 
   for (const d of factura.detalles) {
@@ -85,8 +85,13 @@ export async function generarPdfFactura(
     const pctIce = Number(d.porcentaje_ice ?? 0);
     const valIce = Number(d.valor_ice ?? 0);
 
-    if (pctIce === 15 || (pctIce === 0 && valIce > 0)) { ice15sub += Number(d.subtotal); ice15val += valIce; }
-    else if (pctIce === 10)                              { ice10sub += Number(d.subtotal); ice10val += valIce; }
+    if (pctIce > 0 || valIce > 0) {
+      const key = pctIce > 0 ? pctIce : -1;
+      const b = iceMap.get(key) ?? { subtotal: 0, ice: 0 };
+      b.subtotal += Number(d.subtotal);
+      b.ice      += valIce;
+      iceMap.set(key, b);
+    }
 
     if      (d.codigo_iva === '0') sub0      += Number(d.subtotal);
     else if (d.codigo_iva === '2') subExento += Number(d.subtotal);
@@ -94,7 +99,7 @@ export async function generarPdfFactura(
     else                           subIva    += Number(d.subtotal);
   }
 
-  const iceTotal       = ice15val + ice10val;
+  const iceTotal = Array.from(iceMap.values()).reduce((s, b) => s + b.ice, 0);
   const subtotalSinImp = Number(factura.subtotal_sin_impuesto);
   const descTotal      = Number(factura.descuento_total);
   const total          = Number(factura.total);
@@ -424,12 +429,16 @@ export async function generarPdfFactura(
       { label: 'Subtotal Exento de IVA:',   value: subExento },
       { label: 'Subtotal No Objeto de IVA:',value: subNoObjeto },
       { label: `Subtotal IVA ${ivaMainPct}%:`, value: subIva },
-      { label: 'Subtotal ICE 15%:',         value: ice15sub },
-      { label: 'Subtotal ICE 10%:',         value: ice10sub },
+      ...Array.from(iceMap.entries()).sort((a, b) => b[0] - a[0]).map(([pct, b]) => ({
+        label: pct > 0 ? `Subtotal ICE ${pct}%:` : 'Subtotal ICE:',
+        value: b.subtotal,
+      })),
       { label: 'Subtotal Sin Impuestos:',   value: subtotalSinImp, bold: true },
       { label: 'Total Descuento:',          value: descTotal },
-      { label: 'ICE 15%:',                  value: ice15val },
-      { label: 'ICE 10%:',                  value: ice10val },
+      ...Array.from(iceMap.entries()).sort((a, b) => b[0] - a[0]).map(([pct, b]) => ({
+        label: pct > 0 ? `ICE ${pct}%:` : 'ICE:',
+        value: b.ice,
+      })),
       { label: `IVA ${ivaMainPct}%:`,       value: ivaTotal },
     ];
     if (irbpnrTotal > 0) totRows.push({ label: 'IRBPNR:', value: irbpnrTotal });

@@ -87,13 +87,25 @@ export function generarPdfProforma(
     // ── CÁLCULO DE TOTALES DETALLADOS desde ítems ────────────────────────────
     let sub0 = 0, subExento = 0, subNoObjeto = 0, descTotal = 0;
     const ivaMap = new Map<number, IvaBucket>();
+    const iceMap = new Map<number, { subtotal: number; ice: number }>();
 
     for (const d of proforma.detalles) {
       descTotal += Number(d.descuento);
-      const code = d.codigo_iva;
-      const pct  = Number(d.porcentaje_iva);
-      const sub  = Number(d.subtotal);
-      const iva  = Number(d.valor_iva);
+      const code   = d.codigo_iva;
+      const pct    = Number(d.porcentaje_iva);
+      const sub    = Number(d.subtotal);
+      const iva    = Number(d.valor_iva);
+      const pctIce = Number((d as any).porcentaje_ice ?? 0);
+      const valIce = Number((d as any).valor_ice ?? 0);
+
+      if (pctIce > 0 || valIce > 0) {
+        const key = pctIce > 0 ? pctIce : -1;
+        const bi = iceMap.get(key) ?? { subtotal: 0, ice: 0 };
+        bi.subtotal += sub;
+        bi.ice      += valIce;
+        iceMap.set(key, bi);
+      }
+
       if (code === '0') {
         sub0 += sub;
       } else if (code === '2') {
@@ -368,14 +380,16 @@ export function generarPdfProforma(
     addTotRow('Subtotal Exento de IVA:', subExento);
     addTotRow('Subtotal No Objeto de IVA:', subNoObjeto);
     addTotRow(`Subtotal IVA ${ivaMainPct}%:`, ivaMainBucket.subtotal);
-    addTotRow('Subtotal ICE 15%:', 0);
-    addTotRow('Subtotal ICE 10%:', 0);
+    for (const [pct, b] of Array.from(iceMap.entries()).sort((a, z) => z[0] - a[0])) {
+      addTotRow(pct > 0 ? `Subtotal ICE ${pct}%:` : 'Subtotal ICE:', b.subtotal);
+    }
     doc.strokeColor(LIGHT_P).lineWidth(0.8).moveTo(TX, y).lineTo(TX + TW, y).stroke();
     y += 2;
     addTotRow('Subtotal Sin Impuestos:', subtotalSinImp);
     addTotRow('Total Descuento:', descTotal);
-    addTotRow('ICE 15%:', 0);
-    addTotRow('ICE 10%:', 0);
+    for (const [pct, b] of Array.from(iceMap.entries()).sort((a, z) => z[0] - a[0])) {
+      addTotRow(pct > 0 ? `ICE ${pct}%:` : 'ICE:', b.ice);
+    }
     addTotRow(`IVA ${ivaMainPct}%:`, ivaMainBucket.iva);
     y += 5;
     addTotRow('TOTAL A PAGAR:', total, true);

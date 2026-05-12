@@ -35,6 +35,12 @@ interface GrupoIva {
   valor: number;
 }
 
+interface GrupoIce {
+  tarifa: number;
+  baseImponible: number;
+  valor: number;
+}
+
 function agruparIva(detalles: FacturaConDetalles['detalles']): GrupoIva[] {
   const grupos = new Map<string, GrupoIva>();
   for (const d of detalles) {
@@ -57,6 +63,24 @@ function agruparIva(detalles: FacturaConDetalles['detalles']): GrupoIva[] {
   return Array.from(grupos.values());
 }
 
+function agruparIce(detalles: FacturaConDetalles['detalles']): (GrupoIce & { codigoPorcentaje: string })[] {
+  const grupos = new Map<string, GrupoIce & { codigoPorcentaje: string }>();
+  for (const d of detalles) {
+    const valIce = Number(d.valor_ice ?? 0);
+    if (valIce <= 0) continue;
+    const tarifa = Number(d.porcentaje_ice ?? 0);
+    const codigoPorcentaje = (d as any).codigo_ice ?? String(Math.round(tarifa));
+    const g = grupos.get(codigoPorcentaje);
+    if (g) {
+      g.baseImponible += Number(d.subtotal);
+      g.valor += valIce;
+    } else {
+      grupos.set(codigoPorcentaje, { tarifa, codigoPorcentaje, baseImponible: Number(d.subtotal), valor: valIce });
+    }
+  }
+  return Array.from(grupos.values());
+}
+
 export function generarXmlFactura(
   factura: FacturaConDetalles,
   empresa: Empresa,
@@ -74,18 +98,39 @@ export function generarXmlFactura(
 
   // totalConImpuestos
   const grupos = agruparIva(factura.detalles);
-  const totalConImpuestosXml = grupos
-    .map(
-      (g) =>
-        `<totalImpuesto>` +
-        `<codigo>2</codigo>` +
-        `<codigoPorcentaje>${g.codigoPorcentaje}</codigoPorcentaje>` +
-        `<descuentoAdicional>0.00</descuentoAdicional>` +
-        `<baseImponible>${fmt2(g.baseImponible)}</baseImponible>` +
-        `<valor>${fmt2(g.valor)}</valor>` +
-        `</totalImpuesto>`
-    )
-    .join('');
+  const gruposIce = agruparIce(factura.detalles);
+
+  // importeTotal consistente con los valores redondeados declarados en el XML
+  const subtotalRedondeado  = Number(fmt2(factura.subtotal_sin_impuesto));
+  const ivaRedondeado       = grupos.reduce((s, g) => s + Number(fmt2(g.valor)), 0);
+  const iceRedondeado       = gruposIce.reduce((s, g) => s + Number(fmt2(g.valor)), 0);
+  const irbpnrRedondeado    = Number(fmt2(factura.valor_irbpnr));
+  const importeTotalXml     = fmt2(subtotalRedondeado + ivaRedondeado + iceRedondeado + irbpnrRedondeado);
+  const totalConImpuestosXml =
+    grupos
+      .map(
+        (g) =>
+          `<totalImpuesto>` +
+          `<codigo>2</codigo>` +
+          `<codigoPorcentaje>${g.codigoPorcentaje}</codigoPorcentaje>` +
+          `<descuentoAdicional>0.00</descuentoAdicional>` +
+          `<baseImponible>${fmt2(g.baseImponible)}</baseImponible>` +
+          `<valor>${fmt2(g.valor)}</valor>` +
+          `</totalImpuesto>`
+      )
+      .join('') +
+    gruposIce
+      .map(
+        (g) =>
+          `<totalImpuesto>` +
+          `<codigo>3</codigo>` +
+          `<codigoPorcentaje>${g.codigoPorcentaje}</codigoPorcentaje>` +
+          `<descuentoAdicional>0.00</descuentoAdicional>` +
+          `<baseImponible>${fmt2(g.baseImponible)}</baseImponible>` +
+          `<valor>${fmt2(g.valor)}</valor>` +
+          `</totalImpuesto>`
+      )
+      .join('');
 
   // Contribuyente especial
   const contribEsp = empresa.contribuyente_especial && empresa.nro_contribuyente_esp
@@ -112,6 +157,15 @@ export function generarXmlFactura(
         `<baseImponible>${fmt2(d.subtotal)}</baseImponible>` +
         `<valor>${fmt2(d.valor_iva)}</valor>` +
         `</impuesto>` +
+        (Number(d.valor_ice ?? 0) > 0
+          ? `<impuesto>` +
+            `<codigo>3</codigo>` +
+            `<codigoPorcentaje>${(d as any).codigo_ice ?? Math.round(Number(d.porcentaje_ice ?? 0))}</codigoPorcentaje>` +
+            `<tarifa>${fmt2(Number(d.porcentaje_ice ?? 0))}</tarifa>` +
+            `<baseImponible>${fmt2(d.subtotal)}</baseImponible>` +
+            `<valor>${fmt2(Number(d.valor_ice))}</valor>` +
+            `</impuesto>`
+          : '') +
         `</impuestos>` +
         `</detalle>`
       );
@@ -158,7 +212,7 @@ export function generarXmlFactura(
     `<totalDescuento>${fmt2(factura.descuento_total)}</totalDescuento>` +
     `<totalConImpuestos>${totalConImpuestosXml}</totalConImpuestos>` +
     `<propina>0.00</propina>` +
-    `<importeTotal>${fmt2(factura.total)}</importeTotal>` +
+    `<importeTotal>${importeTotalXml}</importeTotal>` +
     `<moneda>DOLAR</moneda>` +
     `<pagos>` +
     `<pago>` +

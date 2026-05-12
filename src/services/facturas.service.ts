@@ -97,7 +97,7 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
 
     // Cargar producto si se provee id_producto y autocompletar campos faltantes
     let id_producto: number | undefined;
-    let productoData: { codigo: string; descripcion: string; unidad_medida: string; precio: number; porcentaje_iva: number; codigo_iva: string } | null = null;
+    let productoData: { codigo: string; descripcion: string; unidad_medida: string; precio: number; porcentaje_iva: number; codigo_iva: string; porcentaje_ice: number; codigo_ice: string | null } | null = null;
 
     if (d['id_producto'] !== undefined && d['id_producto'] !== null) {
       id_producto = Number(d['id_producto']);
@@ -114,6 +114,8 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
         precio: producto.precio,
         porcentaje_iva: producto.porcentaje_iva,
         codigo_iva: (producto as any).iva_codigo ?? '4',
+        porcentaje_ice: producto.porcentaje_ice ?? 0,
+        codigo_ice: producto.codigo_ice ?? null,
       };
     }
 
@@ -161,7 +163,11 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
 
     const porcentaje_ice = d['porcentaje_ice'] !== undefined
       ? Number(d['porcentaje_ice'])
-      : productoData ? (productoData as any).porcentaje_ice ?? 0 : 0;
+      : productoData?.porcentaje_ice ?? 0;
+
+    const codigo_ice = typeof d['codigo_ice'] === 'string' && d['codigo_ice'].trim()
+      ? d['codigo_ice'].trim()
+      : productoData?.codigo_ice ?? null;
 
     const subtotalBruto = round4(cantidad * precio_unitario - descuento);
     const valor_ice = porcentaje_ice > 0
@@ -186,6 +192,7 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
       porcentaje_iva,
       valor_iva,
       porcentaje_ice,
+      codigo_ice,
       valor_ice,
       valor_irbpnr,
       total,

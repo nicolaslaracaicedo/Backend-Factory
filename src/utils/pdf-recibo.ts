@@ -217,19 +217,18 @@ export function generarPdfRecibo(
 
     const ivaMainPct = Array.from(ivaMap.keys()).sort((a, b) => b - a)[0] ?? 15;
     const ivaMainB   = ivaMap.get(ivaMainPct) ?? { subtotal: 0, iva: 0 };
-    const ice15b     = iceMap.get(15) ?? { subtotal: 0, ice: 0 };
-    const ice10b     = iceMap.get(10) ?? { subtotal: 0, ice: 0 };
-
     totRow('Subtotal 0%:', `$${fmt(sub0)}`);
     totRow('Subtotal Exento IVA:', `$${fmt(subExento)}`);
     totRow('Subtotal No Objeto:', `$${fmt(subNoObjeto)}`);
     totRow(`Subtotal IVA ${ivaMainPct}%:`, `$${fmt(ivaMainB.subtotal)}`);
-    totRow('Subtotal ICE 15%:', `$${fmt(ice15b.subtotal)}`);
-    totRow('Subtotal ICE 10%:', `$${fmt(ice10b.subtotal)}`);
+    for (const [pct, b] of Array.from(iceMap.entries()).sort((a, z) => z[0] - a[0])) {
+      totRow(pct > 0 ? `Subtotal ICE ${pct}%:` : 'Subtotal ICE:', `$${fmt(b.subtotal)}`);
+    }
     totRow('Sub. Sin Impuestos:', `$${fmt(Number(factura.subtotal_sin_impuesto))}`);
     totRow('Total Descuento:', `$${fmt(descTotal)}`);
-    totRow('ICE 15%:', `$${fmt(ice15b.ice)}`);
-    totRow('ICE 10%:', `$${fmt(ice10b.ice)}`);
+    for (const [pct, b] of Array.from(iceMap.entries()).sort((a, z) => z[0] - a[0])) {
+      totRow(pct > 0 ? `ICE ${pct}%:` : 'ICE:', `$${fmt(b.ice)}`);
+    }
     totRow(`IVA ${ivaMainPct}%:`, `$${fmt(ivaMainB.iva)}`);
 
     y += 1;

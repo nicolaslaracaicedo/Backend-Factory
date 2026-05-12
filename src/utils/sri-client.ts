@@ -184,12 +184,12 @@ export async function consultarAutorizacion(
 export async function consultarConReintentos(
   claveAcceso: string,
   ambiente: number,
-  maxIntentos = 3,
+  maxIntentos = 5,
   delayMs = 3000
 ): Promise<RespuestaAutorizacion> {
   for (let i = 0; i < maxIntentos; i++) {
     const resp = await consultarAutorizacion(claveAcceso, ambiente);
-    if (resp.estado !== 'EN PROCESAMIENTO') return resp;
+    if (resp.estado === 'AUTORIZADO' || resp.estado === 'NO AUTORIZADO') return resp;
     if (i < maxIntentos - 1) {
       await new Promise((r) => setTimeout(r, delayMs));
     }

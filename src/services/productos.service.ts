@@ -79,6 +79,9 @@ export const ProductoService = {
       porcentaje_iva: iva.porcentaje,
       tiene_ice:     tieneIce,
       porcentaje_ice: tieneIce ? porcentaje_ice : 0,
+      codigo_ice: tieneIce && typeof body['codigo_ice'] === 'string' && body['codigo_ice'].trim()
+        ? body['codigo_ice'].trim()
+        : null,
     };
 
     return ProductoModel.create(data);
@@ -136,6 +139,11 @@ export const ProductoService = {
       data.porcentaje_ice = tieneIce ? porcentaje_ice : 0;
     } else if (body['porcentaje_ice'] !== undefined) {
       data.porcentaje_ice = Number(body['porcentaje_ice']);
+    }
+    if (body['codigo_ice'] !== undefined) {
+      data.codigo_ice = body['codigo_ice'] === null || body['codigo_ice'] === ''
+        ? null
+        : String(body['codigo_ice']).trim();
     }
 
     if (Object.keys(data).length === 0) throw new Error('No se enviaron campos válidos para actualizar.');
