@@ -22,10 +22,12 @@ function calcularLinea(d: {
   precio_unitario: number;
   descuento: number;
   porcentaje_iva: number;
+  valor_ice: number;
+  valor_irbpnr: number;
 }): { subtotal: number; valor_iva: number; total: number } {
   const subtotal = round4(d.cantidad * d.precio_unitario - d.descuento);
   const valor_iva = round4(subtotal * (d.porcentaje_iva / 100));
-  const total = round4(subtotal + valor_iva);
+  const total = round4(subtotal + valor_iva + d.valor_ice + d.valor_irbpnr);
   return { subtotal, valor_iva, total };
 }
 
@@ -37,12 +39,14 @@ function calcularTotales(detalles: DetalleProformaInput[]): {
   iva_total: number;
   total: number;
 } {
-  let sub0 = 0, subIva = 0, descuentoTotal = 0, ivaTotal = 0;
+  let sub0 = 0, subIva = 0, descuentoTotal = 0, ivaTotal = 0, iceTotal = 0, irbpnrTotal = 0;
 
   for (const d of detalles) {
     descuentoTotal += d.descuento;
     ivaTotal += d.valor_iva;
-    if (d.codigo_iva === '0') {
+    iceTotal += d.valor_ice;
+    irbpnrTotal += d.valor_irbpnr;
+    if (d.codigo_iva === '0' || d.codigo_iva === '2' || d.codigo_iva === '3') {
       sub0 += d.subtotal;
     } else {
       subIva += d.subtotal;
@@ -56,7 +60,7 @@ function calcularTotales(detalles: DetalleProformaInput[]): {
     subtotal_iva: round4(subIva),
     descuento_total: round4(descuentoTotal),
     iva_total: round4(ivaTotal),
-    total: round4(subtotal_sin_impuesto + ivaTotal),
+    total: round4(subtotal_sin_impuesto + ivaTotal + iceTotal + irbpnrTotal),
   };
 }
 
@@ -69,12 +73,9 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
 
     let id_producto: number | undefined;
     let productoData: {
-      codigo: string;
-      descripcion: string;
-      unidad_medida: string;
-      precio: number;
-      porcentaje_iva: number;
-      codigo_iva: string;
+      codigo: string; descripcion: string; unidad_medida: string; precio: number;
+      porcentaje_iva: number; codigo_iva: string; porcentaje_ice: number;
+      codigo_ice: string | null; tiene_irbpnr: boolean; valor_unitario_irbpnr: number;
     } | null = null;
 
     if (d['id_producto'] !== undefined && d['id_producto'] !== null) {
@@ -92,6 +93,10 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
         precio: producto.precio,
         porcentaje_iva: producto.porcentaje_iva,
         codigo_iva: (producto as any).iva_codigo ?? '4',
+        porcentaje_ice: producto.porcentaje_ice ?? 0,
+        codigo_ice: producto.codigo_ice ?? null,
+        tiene_irbpnr: producto.tiene_irbpnr ?? false,
+        valor_unitario_irbpnr: producto.valor_unitario_irbpnr ?? 0,
       };
     }
 
@@ -137,8 +142,23 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
     if (isNaN(porcentaje_iva) || porcentaje_iva < 0)
       throw new Error(`Detalle ${orden}: 'porcentaje_iva' inválido.`);
 
+    const porcentaje_ice = d['porcentaje_ice'] !== undefined
+      ? Number(d['porcentaje_ice'])
+      : productoData?.porcentaje_ice ?? 0;
+    const codigo_ice = d['codigo_ice'] != null && String(d['codigo_ice']).trim()
+      ? String(d['codigo_ice']).trim()
+      : productoData?.codigo_ice ?? null;
+
+    const subtotalBruto = round4(cantidad * precio_unitario - descuento);
+    const valor_ice = porcentaje_ice > 0
+      ? round4(subtotalBruto * (porcentaje_ice / 100))
+      : Number(d['valor_ice'] ?? 0);
+    const valor_irbpnr = productoData?.tiene_irbpnr
+      ? round4(cantidad * productoData.valor_unitario_irbpnr)
+      : Number(d['valor_irbpnr'] ?? 0);
+
     const { subtotal, valor_iva, total } = calcularLinea({
-      cantidad, precio_unitario, descuento, porcentaje_iva,
+      cantidad, precio_unitario, descuento, porcentaje_iva, valor_ice, valor_irbpnr,
     });
 
     detalles.push({
@@ -153,6 +173,10 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
       codigo_iva,
       porcentaje_iva,
       valor_iva,
+      porcentaje_ice,
+      valor_ice,
+      codigo_ice,
+      valor_irbpnr,
       total,
       orden,
     });
@@ -393,15 +417,17 @@ export const ProformaService = {
       codigo_iva: d.codigo_iva,
       porcentaje_iva: Number(d.porcentaje_iva),
       valor_iva: Number(d.valor_iva),
-      porcentaje_ice: 0,
-      codigo_ice: null,
-      valor_ice: 0,
-      valor_irbpnr: 0,
+      porcentaje_ice: Number(d.porcentaje_ice ?? 0),
+      codigo_ice: d.codigo_ice ?? null,
+      valor_ice: Number(d.valor_ice ?? 0),
+      valor_irbpnr: Number(d.valor_irbpnr ?? 0),
       total: Number(d.total),
       orden: i + 1,
     }));
 
     const iva_porcentaje = detallesFactura.find((d) => d.porcentaje_iva > 0)?.porcentaje_iva ?? 15.0;
+    const valor_ice_total = detallesFactura.reduce((s, d) => s + d.valor_ice, 0);
+    const valor_irbpnr_total = detallesFactura.reduce((s, d) => s + d.valor_irbpnr, 0);
 
     const factura = await FacturaModel.create({
       id_empresa: empresaId,
@@ -428,8 +454,8 @@ export const ProformaService = {
       subtotal_no_objeto_iva: 0,
       subtotal_exento_iva: 0,
       descuento_total: Number(proforma.descuento_total),
-      valor_ice: 0,
-      valor_irbpnr: 0,
+      valor_ice: valor_ice_total,
+      valor_irbpnr: valor_irbpnr_total,
       iva_porcentaje,
       iva_total: Number(proforma.iva_total),
       total: Number(proforma.total),

@@ -28,10 +28,12 @@ function calcularLinea(d: {
   precio_unitario: number;
   descuento: number;
   porcentaje_iva: number;
+  valor_ice: number;
+  valor_irbpnr: number;
 }): { subtotal: number; valor_iva: number; total: number } {
   const subtotal = round4(d.cantidad * d.precio_unitario - d.descuento);
   const valor_iva = round4(subtotal * (d.porcentaje_iva / 100));
-  const total = round4(subtotal + valor_iva);
+  const total = round4(subtotal + valor_iva + d.valor_ice + d.valor_irbpnr);
   return { subtotal, valor_iva, total };
 }
 
@@ -43,11 +45,13 @@ function calcularTotales(detalles: DetalleNCInput[]): {
   iva_total: number;
   total: number;
 } {
-  let sub0 = 0, subIva = 0, descuentoTotal = 0, ivaTotal = 0;
+  let sub0 = 0, subIva = 0, descuentoTotal = 0, ivaTotal = 0, iceTotal = 0, irbpnrTotal = 0;
 
   for (const d of detalles) {
     descuentoTotal += d.descuento;
     ivaTotal += d.valor_iva;
+    iceTotal += d.valor_ice;
+    irbpnrTotal += d.valor_irbpnr;
     if (['0', '2', '3'].includes(d.codigo_iva)) {
       sub0 += d.subtotal;
     } else {
@@ -56,7 +60,7 @@ function calcularTotales(detalles: DetalleNCInput[]): {
   }
 
   const subtotal_sin_impuesto = round4(sub0 + subIva);
-  const total = round4(subtotal_sin_impuesto + ivaTotal);
+  const total = round4(subtotal_sin_impuesto + ivaTotal + iceTotal + irbpnrTotal);
 
   return {
     subtotal_sin_impuesto,
@@ -77,7 +81,11 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
 
     // Cargar producto si se provee id_producto y autocompletar campos faltantes
     let id_producto: number | undefined;
-    let productoData: { codigo: string; descripcion: string; unidad_medida: string; precio: number; porcentaje_iva: number; codigo_iva: string } | null = null;
+    let productoData: {
+      codigo: string; descripcion: string; unidad_medida: string; precio: number;
+      porcentaje_iva: number; codigo_iva: string; porcentaje_ice: number;
+      codigo_ice: string | null; tiene_irbpnr: boolean; valor_unitario_irbpnr: number;
+    } | null = null;
 
     if (d['id_producto'] !== undefined && d['id_producto'] !== null) {
       id_producto = Number(d['id_producto']);
@@ -94,6 +102,10 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
         precio: producto.precio,
         porcentaje_iva: producto.porcentaje_iva,
         codigo_iva: (producto as any).iva_codigo ?? '4',
+        porcentaje_ice: producto.porcentaje_ice ?? 0,
+        codigo_ice: producto.codigo_ice ?? null,
+        tiene_irbpnr: producto.tiene_irbpnr ?? false,
+        valor_unitario_irbpnr: producto.valor_unitario_irbpnr ?? 0,
       };
     }
 
@@ -139,7 +151,24 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
     if (isNaN(porcentaje_iva) || porcentaje_iva < 0)
       throw new Error(`Detalle ${orden}: 'porcentaje_iva' inválido.`);
 
-    const { subtotal, valor_iva, total } = calcularLinea({ cantidad, precio_unitario, descuento, porcentaje_iva });
+    const porcentaje_ice = d['porcentaje_ice'] !== undefined
+      ? Number(d['porcentaje_ice'])
+      : productoData?.porcentaje_ice ?? 0;
+    const codigo_ice = d['codigo_ice'] != null && String(d['codigo_ice']).trim()
+      ? String(d['codigo_ice']).trim()
+      : productoData?.codigo_ice ?? null;
+
+    const subtotalBruto = round4(cantidad * precio_unitario - descuento);
+    const valor_ice = porcentaje_ice > 0
+      ? round4(subtotalBruto * (porcentaje_ice / 100))
+      : Number(d['valor_ice'] ?? 0);
+    const valor_irbpnr = productoData?.tiene_irbpnr
+      ? round4(cantidad * productoData.valor_unitario_irbpnr)
+      : Number(d['valor_irbpnr'] ?? 0);
+
+    const { subtotal, valor_iva, total } = calcularLinea({
+      cantidad, precio_unitario, descuento, porcentaje_iva, valor_ice, valor_irbpnr,
+    });
 
     detalles.push({
       id_producto,
@@ -153,6 +182,10 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
       codigo_iva,
       porcentaje_iva,
       valor_iva,
+      porcentaje_ice,
+      valor_ice,
+      codigo_ice,
+      valor_irbpnr,
       total,
       orden,
     });

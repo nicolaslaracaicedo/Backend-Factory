@@ -32,6 +32,7 @@ interface GrupoIva {
   valor: number;
 }
 
+
 function agruparIva(detalles: LiquidacionCompraConDetalles['detalles']): GrupoIva[] {
   const grupos = new Map<string, GrupoIva>();
   for (const d of detalles) {
@@ -52,6 +53,7 @@ function agruparIva(detalles: LiquidacionCompraConDetalles['detalles']): GrupoIv
   return Array.from(grupos.values());
 }
 
+
 export function generarXmlLiquidacionCompra(
   lc: LiquidacionCompraConDetalles,
   empresa: Empresa,
@@ -68,6 +70,8 @@ export function generarXmlLiquidacionCompra(
   const dirEstab = esc(dirEstablecimiento || empresa.direccion_matriz);
 
   const grupos = agruparIva(lc.detalles);
+
+  // La liquidación de compra solo acepta IVA (codigo 2) en totalConImpuestos según el XSD del SRI
   const totalConImpuestosXml = grupos
     .map(
       (g) =>
@@ -84,6 +88,7 @@ export function generarXmlLiquidacionCompra(
     ? `<contribuyenteEspecial>${esc(empresa.nro_contribuyente_esp)}</contribuyenteEspecial>`
     : '';
 
+  // En la liquidación de compra el SRI solo acepta IVA (codigo 2) en los impuestos de cada detalle
   const detallesXml = lc.detalles
     .map((d) => {
       const cp = CODIGO_PORCENTAJE[d.codigo_iva] ?? '4';

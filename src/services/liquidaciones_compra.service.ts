@@ -27,19 +27,21 @@ function inferirTipoIdProveedor(identificacion: string): string {
   return '06';
 }
 
-function calcularLinea(cantidad: number, precio_unitario: number, descuento: number, porcentaje_iva: number) {
+function calcularLinea(cantidad: number, precio_unitario: number, descuento: number, porcentaje_iva: number, valor_ice = 0, valor_irbpnr = 0) {
   const subtotal = round4(cantidad * precio_unitario - descuento);
   const valor_iva = round4(subtotal * (porcentaje_iva / 100));
-  const total = round4(subtotal + valor_iva);
+  const total = round4(subtotal + valor_iva + valor_ice + valor_irbpnr);
   return { subtotal, valor_iva, total };
 }
 
 function calcularTotales(detalles: DetalleLC_Input[]) {
-  let sub0 = 0, subIva = 0, descuentoTotal = 0, ivaTotal = 0;
+  let sub0 = 0, subIva = 0, descuentoTotal = 0, ivaTotal = 0, iceTotal = 0, irbpnrTotal = 0;
 
   for (const d of detalles) {
     descuentoTotal += d.descuento;
     ivaTotal += d.valor_iva;
+    iceTotal += d.valor_ice;
+    irbpnrTotal += d.valor_irbpnr;
     if (d.codigo_iva === '0' || d.codigo_iva === '2' || d.codigo_iva === '3') {
       sub0 += d.subtotal;
     } else {
@@ -48,7 +50,7 @@ function calcularTotales(detalles: DetalleLC_Input[]) {
   }
 
   const subtotal_sin_impuesto = round4(sub0 + subIva);
-  const total = round4(subtotal_sin_impuesto + ivaTotal);
+  const total = round4(subtotal_sin_impuesto + ivaTotal + iceTotal + irbpnrTotal);
 
   return {
     subtotal_sin_impuesto,
@@ -97,9 +99,23 @@ async function parseDetalles(raw: unknown[]): Promise<DetalleLC_Input[]> {
     if (isNaN(porcentaje_iva) || porcentaje_iva < 0)
       throw new Error(`Detalle ${orden}: 'porcentaje_iva' inválido.`);
 
-    const { subtotal, valor_iva, total } = calcularLinea(cantidad, precio_unitario, descuento, porcentaje_iva);
+    const porcentaje_ice = Number(d['porcentaje_ice'] ?? 0);
+    const codigo_ice = d['codigo_ice'] != null && String(d['codigo_ice']).trim()
+      ? String(d['codigo_ice']).trim()
+      : null;
+    const subtotalBruto = round4(cantidad * precio_unitario - descuento);
+    const valor_ice = porcentaje_ice > 0
+      ? round4(subtotalBruto * (porcentaje_ice / 100))
+      : Number(d['valor_ice'] ?? 0);
+    const tieneIrbpnr = d['tiene_irbpnr'] === true || d['tiene_irbpnr'] === 'true';
+    const valor_unitario_irbpnr = Number(d['valor_unitario_irbpnr'] ?? 0);
+    const valor_irbpnr = tieneIrbpnr && valor_unitario_irbpnr > 0
+      ? round4(cantidad * valor_unitario_irbpnr)
+      : Number(d['valor_irbpnr'] ?? 0);
 
-    detalles.push({ codigo, descripcion, unidad_medida, cantidad, precio_unitario, descuento, subtotal, codigo_iva, porcentaje_iva, valor_iva, total, orden });
+    const { subtotal, valor_iva, total } = calcularLinea(cantidad, precio_unitario, descuento, porcentaje_iva, valor_ice, valor_irbpnr);
+
+    detalles.push({ codigo, descripcion, unidad_medida, cantidad, precio_unitario, descuento, subtotal, codigo_iva, porcentaje_iva, valor_iva, porcentaje_ice, valor_ice, codigo_ice, valor_irbpnr, total, orden });
   }
 
   return detalles;

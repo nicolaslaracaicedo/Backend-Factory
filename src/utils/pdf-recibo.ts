@@ -215,6 +215,8 @@ export function generarPdfRecibo(
       }
     }
 
+    const irbpnrTotal = factura.detalles.reduce((s, d) => s + Number((d as any).valor_irbpnr ?? 0), 0);
+
     const ivaMainPct = Array.from(ivaMap.keys()).sort((a, b) => b - a)[0] ?? 15;
     const ivaMainB   = ivaMap.get(ivaMainPct) ?? { subtotal: 0, iva: 0 };
     totRow('Subtotal 0%:', `$${fmt(sub0)}`);
@@ -229,6 +231,7 @@ export function generarPdfRecibo(
     for (const [pct, b] of Array.from(iceMap.entries()).sort((a, z) => z[0] - a[0])) {
       totRow(pct > 0 ? `ICE ${pct}%:` : 'ICE:', `$${fmt(b.ice)}`);
     }
+    if (irbpnrTotal > 0) totRow('IRBPNR:', `$${fmt(irbpnrTotal)}`);
     totRow(`IVA ${ivaMainPct}%:`, `$${fmt(ivaMainB.iva)}`);
 
     y += 1;

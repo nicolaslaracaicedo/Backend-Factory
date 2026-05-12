@@ -97,7 +97,11 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
 
     // Cargar producto si se provee id_producto y autocompletar campos faltantes
     let id_producto: number | undefined;
-    let productoData: { codigo: string; descripcion: string; unidad_medida: string; precio: number; porcentaje_iva: number; codigo_iva: string; porcentaje_ice: number; codigo_ice: string | null } | null = null;
+    let productoData: {
+      codigo: string; descripcion: string; unidad_medida: string; precio: number;
+      porcentaje_iva: number; codigo_iva: string; porcentaje_ice: number;
+      codigo_ice: string | null; tiene_irbpnr: boolean; valor_unitario_irbpnr: number;
+    } | null = null;
 
     if (d['id_producto'] !== undefined && d['id_producto'] !== null) {
       id_producto = Number(d['id_producto']);
@@ -116,6 +120,8 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
         codigo_iva: (producto as any).iva_codigo ?? '4',
         porcentaje_ice: producto.porcentaje_ice ?? 0,
         codigo_ice: producto.codigo_ice ?? null,
+        tiene_irbpnr: producto.tiene_irbpnr ?? false,
+        valor_unitario_irbpnr: producto.valor_unitario_irbpnr ?? 0,
       };
     }
 
@@ -165,15 +171,17 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
       ? Number(d['porcentaje_ice'])
       : productoData?.porcentaje_ice ?? 0;
 
-    const codigo_ice = typeof d['codigo_ice'] === 'string' && d['codigo_ice'].trim()
-      ? d['codigo_ice'].trim()
+    const codigo_ice = d['codigo_ice'] != null && String(d['codigo_ice']).trim()
+      ? String(d['codigo_ice']).trim()
       : productoData?.codigo_ice ?? null;
 
     const subtotalBruto = round4(cantidad * precio_unitario - descuento);
     const valor_ice = porcentaje_ice > 0
       ? round4(subtotalBruto * (porcentaje_ice / 100))
       : Number(d['valor_ice'] ?? 0);
-    const valor_irbpnr = Number(d['valor_irbpnr'] ?? 0);
+    const valor_irbpnr = productoData?.tiene_irbpnr
+      ? round4(cantidad * productoData.valor_unitario_irbpnr)
+      : Number(d['valor_irbpnr'] ?? 0);
 
     const { subtotal, valor_iva, total } = calcularLinea({
       cantidad, precio_unitario, descuento, porcentaje_iva, valor_ice, valor_irbpnr,

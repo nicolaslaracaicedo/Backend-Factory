@@ -40,6 +40,10 @@ export interface DetalleProforma {
   codigo_iva: string;
   porcentaje_iva: number;
   valor_iva: number;
+  porcentaje_ice: number;
+  valor_ice: number;
+  codigo_ice: string | null;
+  valor_irbpnr: number;
   total: number;
   orden: number;
 }
@@ -60,6 +64,10 @@ export interface DetalleProformaInput {
   codigo_iva: string;
   porcentaje_iva: number;
   valor_iva: number;
+  porcentaje_ice: number;
+  valor_ice: number;
+  codigo_ice: string | null;
+  valor_irbpnr: number;
   total: number;
   orden: number;
 }
@@ -225,12 +233,12 @@ export const ProformaModel = {
           `INSERT INTO detalle_proformas (
             id_proforma, id_empresa, id_producto, codigo, descripcion, unidad_medida,
             cantidad, precio_unitario, descuento, subtotal, codigo_iva, porcentaje_iva,
-            valor_iva, total, orden
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+            valor_iva, porcentaje_ice, valor_ice, codigo_ice, valor_irbpnr, total, orden
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
           [
             proforma.id, data.id_empresa, d.id_producto ?? null, d.codigo, d.descripcion, d.unidad_medida,
             d.cantidad, d.precio_unitario, d.descuento, d.subtotal, d.codigo_iva, d.porcentaje_iva,
-            d.valor_iva, d.total, d.orden,
+            d.valor_iva, d.porcentaje_ice, d.valor_ice, d.codigo_ice ?? null, d.valor_irbpnr, d.total, d.orden,
           ]
         );
         detalles.push(dRes.rows[0]!);

@@ -63,9 +63,21 @@ export async function generarPdfLiquidacionCompra(
 
   let sub0 = 0, subExento = 0, subNoObjeto = 0, subIva = 0, ivaTotal = 0;
   let ivaMainPct = 15;
+  const iceMap = new Map<number, { subtotal: number; ice: number }>();
+  let irbpnrTotal = 0;
 
   for (const d of lc.detalles) {
     ivaTotal += Number(d.valor_iva);
+    const pctIce = Number(d.porcentaje_ice ?? 0);
+    const valIce = Number(d.valor_ice ?? 0);
+    if (pctIce > 0 || valIce > 0) {
+      const key = pctIce > 0 ? pctIce : -1;
+      const bi = iceMap.get(key) ?? { subtotal: 0, ice: 0 };
+      bi.subtotal += Number(d.subtotal);
+      bi.ice += valIce;
+      iceMap.set(key, bi);
+    }
+    irbpnrTotal += Number(d.valor_irbpnr ?? 0);
     if      (d.codigo_iva === '0') sub0      += Number(d.subtotal);
     else if (d.codigo_iva === '2') subExento += Number(d.subtotal);
     else if (d.codigo_iva === '3') subNoObjeto += Number(d.subtotal);
@@ -335,13 +347,17 @@ export async function generarPdfLiquidacionCompra(
     const TOT_TOTAL_H  = 20;
     const TOT_HEADER_H = 14;
 
-    const totRows = [
+    const iceEntries = Array.from(iceMap.entries()).sort((a, z) => z[0] - a[0]);
+    const totRows: Array<{ label: string; value: number; bold?: boolean }> = [
       { label: 'Subtotal 0%:',              value: sub0 },
       { label: 'Subtotal Exento de IVA:',   value: subExento },
       { label: 'Subtotal No Objeto de IVA:',value: subNoObjeto },
       { label: `Subtotal IVA ${ivaMainPct}%:`, value: subIva },
+      ...iceEntries.map(([pct, b]) => ({ label: pct > 0 ? `Subtotal ICE ${pct}%:` : 'Subtotal ICE:', value: b.subtotal })),
       { label: 'Subtotal Sin Impuestos:',   value: subtotalSinImp, bold: true },
       { label: 'Total Descuento:',          value: descTotal },
+      ...iceEntries.map(([pct, b]) => ({ label: pct > 0 ? `ICE ${pct}%:` : 'ICE:', value: b.ice })),
+      ...(irbpnrTotal > 0 ? [{ label: 'IRBPNR:', value: irbpnrTotal }] : []),
       { label: `IVA ${ivaMainPct}%:`,       value: ivaTotal },
     ];
 

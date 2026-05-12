@@ -106,6 +106,17 @@ export function generarXmlFactura(
   const iceRedondeado       = gruposIce.reduce((s, g) => s + Number(fmt2(g.valor)), 0);
   const irbpnrRedondeado    = Number(fmt2(factura.valor_irbpnr));
   const importeTotalXml     = fmt2(subtotalRedondeado + ivaRedondeado + iceRedondeado + irbpnrRedondeado);
+
+  const irbpnrXml = irbpnrRedondeado > 0
+    ? `<totalImpuesto>` +
+      `<codigo>5</codigo>` +
+      `<codigoPorcentaje>5001</codigoPorcentaje>` +
+      `<descuentoAdicional>0.00</descuentoAdicional>` +
+      `<baseImponible>${fmt2(factura.subtotal_sin_impuesto)}</baseImponible>` +
+      `<valor>${fmt2(irbpnrRedondeado)}</valor>` +
+      `</totalImpuesto>`
+    : '';
+
   const totalConImpuestosXml =
     grupos
       .map(
@@ -130,7 +141,8 @@ export function generarXmlFactura(
           `<valor>${fmt2(g.valor)}</valor>` +
           `</totalImpuesto>`
       )
-      .join('');
+      .join('') +
+    irbpnrXml;
 
   // Contribuyente especial
   const contribEsp = empresa.contribuyente_especial && empresa.nro_contribuyente_esp
@@ -164,6 +176,15 @@ export function generarXmlFactura(
             `<tarifa>${fmt2(Number(d.porcentaje_ice ?? 0))}</tarifa>` +
             `<baseImponible>${fmt2(d.subtotal)}</baseImponible>` +
             `<valor>${fmt2(Number(d.valor_ice))}</valor>` +
+            `</impuesto>`
+          : '') +
+        (Number((d as any).valor_irbpnr ?? 0) > 0
+          ? `<impuesto>` +
+            `<codigo>5</codigo>` +
+            `<codigoPorcentaje>5001</codigoPorcentaje>` +
+            `<tarifa>0.02</tarifa>` +
+            `<baseImponible>${fmt2(d.subtotal)}</baseImponible>` +
+            `<valor>${fmt2(Number((d as any).valor_irbpnr))}</valor>` +
             `</impuesto>`
           : '') +
         `</impuestos>` +

@@ -14,6 +14,8 @@ export interface Producto {
   tiene_ice: boolean;
   porcentaje_ice: number;
   codigo_ice: string | null;
+  tiene_irbpnr: boolean;
+  valor_unitario_irbpnr: number;
   estado: string;
   created_at: Date;
 }
@@ -31,6 +33,8 @@ export interface ProductoCreate {
   tiene_ice?: boolean;
   porcentaje_ice?: number;
   codigo_ice?: string | null;
+  tiene_irbpnr?: boolean;
+  valor_unitario_irbpnr?: number;
 }
 
 export interface ProductoUpdate {
@@ -44,6 +48,8 @@ export interface ProductoUpdate {
   tiene_ice?: boolean;
   porcentaje_ice?: number;
   codigo_ice?: string | null;
+  tiene_irbpnr?: boolean;
+  valor_unitario_irbpnr?: number;
 }
 
 export interface ProductoFiltros {
@@ -87,7 +93,8 @@ export const ProductoModel = {
       `SELECT p.id, p.id_empresa, p.id_grupo, g.nombre AS grupo_nombre,
               p.id_iva, iv.codigo AS iva_codigo, iv.nombre AS iva_nombre,
               p.tipo, p.codigo, p.descripcion, p.unidad_medida,
-              p.precio, p.porcentaje_iva, p.tiene_ice, p.porcentaje_ice,
+              p.precio, p.porcentaje_iva, p.tiene_ice, p.porcentaje_ice, p.codigo_ice,
+              p.tiene_irbpnr, p.valor_unitario_irbpnr,
               p.estado, p.created_at
        FROM productos p
        LEFT JOIN grupos_productos g  ON g.id  = p.id_grupo AND g.id_empresa  = p.id_empresa
@@ -124,8 +131,9 @@ export const ProductoModel = {
     const result = await pool.query<Producto>(
       `INSERT INTO productos
          (id_empresa, id_grupo, id_iva, tipo, codigo, descripcion,
-          unidad_medida, precio, porcentaje_iva, tiene_ice, porcentaje_ice, codigo_ice)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+          unidad_medida, precio, porcentaje_iva, tiene_ice, porcentaje_ice, codigo_ice,
+          tiene_irbpnr, valor_unitario_irbpnr)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
       [
         data.id_empresa,
         data.id_grupo ?? null,
@@ -139,6 +147,8 @@ export const ProductoModel = {
         data.tiene_ice ?? false,
         data.porcentaje_ice ?? 0,
         data.codigo_ice ?? null,
+        data.tiene_irbpnr ?? false,
+        data.valor_unitario_irbpnr ?? 0,
       ]
     );
     return result.rows[0]!;

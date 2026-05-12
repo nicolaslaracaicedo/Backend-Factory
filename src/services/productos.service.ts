@@ -67,6 +67,9 @@ export const ProductoService = {
     const existe = await ProductoModel.findByCodigo(empresaId, codigo.trim());
     if (existe) throw new Error(`Ya existe un producto con el código "${codigo.trim()}".`);
 
+    const tieneIrbpnr = body['tiene_irbpnr'] === true || body['tiene_irbpnr'] === 'true';
+    const valor_unitario_irbpnr = tieneIrbpnr ? Number(body['valor_unitario_irbpnr'] ?? 0) : 0;
+
     const data: ProductoCreate = {
       id_empresa:    empresaId,
       id_grupo:      (id_grupo !== undefined && id_grupo !== null) ? Number(id_grupo) : undefined,
@@ -79,9 +82,11 @@ export const ProductoService = {
       porcentaje_iva: iva.porcentaje,
       tiene_ice:     tieneIce,
       porcentaje_ice: tieneIce ? porcentaje_ice : 0,
-      codigo_ice: tieneIce && typeof body['codigo_ice'] === 'string' && body['codigo_ice'].trim()
-        ? body['codigo_ice'].trim()
+      codigo_ice: tieneIce && body['codigo_ice'] != null && String(body['codigo_ice']).trim()
+        ? String(body['codigo_ice']).trim()
         : null,
+      tiene_irbpnr: tieneIrbpnr,
+      valor_unitario_irbpnr,
     };
 
     return ProductoModel.create(data);
@@ -144,6 +149,12 @@ export const ProductoService = {
       data.codigo_ice = body['codigo_ice'] === null || body['codigo_ice'] === ''
         ? null
         : String(body['codigo_ice']).trim();
+    }
+    if (body['tiene_irbpnr'] !== undefined) {
+      data.tiene_irbpnr = body['tiene_irbpnr'] === true || body['tiene_irbpnr'] === 'true';
+    }
+    if (body['valor_unitario_irbpnr'] !== undefined) {
+      data.valor_unitario_irbpnr = Number(body['valor_unitario_irbpnr']);
     }
 
     if (Object.keys(data).length === 0) throw new Error('No se enviaron campos válidos para actualizar.');

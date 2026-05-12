@@ -39,6 +39,13 @@ interface GrupoIva {
   valor: number;
 }
 
+interface GrupoIce {
+  codigoPorcentaje: string;
+  tarifa: number;
+  baseImponible: number;
+  valor: number;
+}
+
 function agruparIva(detalles: NotaCreditoConDetalles['detalles']): GrupoIva[] {
   const grupos = new Map<string, GrupoIva>();
   for (const d of detalles) {
@@ -49,6 +56,24 @@ function agruparIva(detalles: NotaCreditoConDetalles['detalles']): GrupoIva[] {
       g.valor += d.valor_iva;
     } else {
       grupos.set(cp, { codigoPorcentaje: cp, tarifa: d.porcentaje_iva, baseImponible: d.subtotal, valor: d.valor_iva });
+    }
+  }
+  return Array.from(grupos.values());
+}
+
+function agruparIce(detalles: NotaCreditoConDetalles['detalles']): GrupoIce[] {
+  const grupos = new Map<string, GrupoIce>();
+  for (const d of detalles) {
+    const valIce = Number(d.valor_ice ?? 0);
+    if (valIce <= 0) continue;
+    const tarifa = Number(d.porcentaje_ice ?? 0);
+    const codigoPorcentaje = d.codigo_ice ?? String(Math.round(tarifa));
+    const g = grupos.get(codigoPorcentaje);
+    if (g) {
+      g.baseImponible += Number(d.subtotal);
+      g.valor += valIce;
+    } else {
+      grupos.set(codigoPorcentaje, { codigoPorcentaje, tarifa, baseImponible: Number(d.subtotal), valor: valIce });
     }
   }
   return Array.from(grupos.values());
@@ -71,22 +96,48 @@ export function generarXmlNotaCredito(
   const fechaSustento = fechaDDMMYYYY(nc.factura_ref_fecha);
   const tipoIdComprador = inferirTipoId(nc.cli_identificacion);
   const grupos = agruparIva(nc.detalles);
+  const gruposIce = agruparIce(nc.detalles);
+  const irbpnrTotal = nc.detalles.reduce((s, d) => s + Number(d.valor_irbpnr ?? 0), 0);
 
-  const totalConImpuestosXml = grupos
-    .map(
-      (g) =>
-        `<totalImpuesto>` +
-        `<codigo>2</codigo>` +
-        `<codigoPorcentaje>${g.codigoPorcentaje}</codigoPorcentaje>` +
-        `<baseImponible>${fmt2(g.baseImponible)}</baseImponible>` +
-        `<valor>${fmt2(g.valor)}</valor>` +
-        `</totalImpuesto>`
-    )
-    .join('');
+  const irbpnrXml = irbpnrTotal > 0
+    ? `<totalImpuesto>` +
+      `<codigo>5</codigo>` +
+      `<codigoPorcentaje>5001</codigoPorcentaje>` +
+      `<baseImponible>${fmt2(nc.subtotal_sin_impuesto)}</baseImponible>` +
+      `<valor>${fmt2(irbpnrTotal)}</valor>` +
+      `</totalImpuesto>`
+    : '';
+
+  const totalConImpuestosXml =
+    grupos
+      .map(
+        (g) =>
+          `<totalImpuesto>` +
+          `<codigo>2</codigo>` +
+          `<codigoPorcentaje>${g.codigoPorcentaje}</codigoPorcentaje>` +
+          `<baseImponible>${fmt2(g.baseImponible)}</baseImponible>` +
+          `<valor>${fmt2(g.valor)}</valor>` +
+          `</totalImpuesto>`
+      )
+      .join('') +
+    gruposIce
+      .map(
+        (g) =>
+          `<totalImpuesto>` +
+          `<codigo>3</codigo>` +
+          `<codigoPorcentaje>${g.codigoPorcentaje}</codigoPorcentaje>` +
+          `<baseImponible>${fmt2(g.baseImponible)}</baseImponible>` +
+          `<valor>${fmt2(g.valor)}</valor>` +
+          `</totalImpuesto>`
+      )
+      .join('') +
+    irbpnrXml;
 
   const detallesXml = nc.detalles
     .map((d) => {
       const cp = CODIGO_PORCENTAJE[d.codigo_iva] ?? '4';
+      const valIce = Number(d.valor_ice ?? 0);
+      const valIrbpnr = Number(d.valor_irbpnr ?? 0);
       return (
         `<detalle>` +
         `<codigoInterno>${esc(d.codigo)}</codigoInterno>` +
@@ -103,6 +154,24 @@ export function generarXmlNotaCredito(
         `<baseImponible>${fmt2(d.subtotal)}</baseImponible>` +
         `<valor>${fmt2(d.valor_iva)}</valor>` +
         `</impuesto>` +
+        (valIce > 0
+          ? `<impuesto>` +
+            `<codigo>3</codigo>` +
+            `<codigoPorcentaje>${d.codigo_ice ?? String(Math.round(Number(d.porcentaje_ice ?? 0)))}</codigoPorcentaje>` +
+            `<tarifa>${fmt2(Number(d.porcentaje_ice ?? 0))}</tarifa>` +
+            `<baseImponible>${fmt2(d.subtotal)}</baseImponible>` +
+            `<valor>${fmt2(valIce)}</valor>` +
+            `</impuesto>`
+          : '') +
+        (valIrbpnr > 0
+          ? `<impuesto>` +
+            `<codigo>5</codigo>` +
+            `<codigoPorcentaje>5001</codigoPorcentaje>` +
+            `<tarifa>0.02</tarifa>` +
+            `<baseImponible>${fmt2(d.subtotal)}</baseImponible>` +
+            `<valor>${fmt2(valIrbpnr)}</valor>` +
+            `</impuesto>`
+          : '') +
         `</impuestos>` +
         `</detalle>`
       );
