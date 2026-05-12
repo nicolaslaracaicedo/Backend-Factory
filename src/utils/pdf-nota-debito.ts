@@ -115,10 +115,27 @@ export async function generarPdfNotaDebito(
     const LOGO_W  = 148;
     const INFO_W  = 210;
     const BADGE_W = CW - LOGO_W - INFO_W - 4;
-    const HDR_H   = 118;
     const LX = M;
     const IX = LX + LOGO_W + 2;
     const BX = IX + INFO_W + 2;
+    const IX_PAD = IX + 8;
+    const INFO_W_INNER = INFO_W - 12;
+    const VAL_WIDTH = INFO_W_INNER - 92;
+
+    const infoRows: [string, string][] = [
+      ['Razón Social:', empresa.razon_social ?? '-'],
+      ['Dir. Matriz:', empresa.direccion_matriz ?? '-'],
+    ];
+    if (empresa.telefono) infoRows.push(['Teléfono:', empresa.telefono]);
+    if (empresa.email)    infoRows.push(['Email:', empresa.email]);
+    infoRows.push(['Obligado Contabilidad:', empresa.obligado_contabilidad ? 'Sí' : 'No']);
+
+    doc.font('Helvetica').fontSize(6.5);
+    let hdrTextH = 13;
+    for (const [, val] of infoRows) {
+      hdrTextH += Math.max(9.5, doc.heightOfString(val, { width: VAL_WIDTH }) + 2);
+    }
+    const HDR_H = Math.max(118, Math.ceil(hdrTextH) + 14);
 
     doc.rect(M, M, CW, HDR_H).fill(GRAY_BG);
     doc.rect(M, M, CW, HDR_H).strokeColor(BORDER).lineWidth(0.6).stroke();
@@ -133,27 +150,18 @@ export async function generarPdfNotaDebito(
       }
     }
 
-    const IX_PAD = IX + 8;
-    const INFO_W_INNER = INFO_W - 12;
     let iy = M + 8;
 
     doc.font('Helvetica-Bold').fontSize(9.5).fillColor(PRIMARY)
        .text(empresa.nombre_comercial ?? empresa.razon_social ?? '', IX_PAD, iy, { width: INFO_W_INNER, lineBreak: false });
     iy += 13;
 
-    const infoRows: [string, string][] = [
-      ['Razón Social:', empresa.razon_social ?? '-'],
-      ['Dir. Matriz:', empresa.direccion_matriz ?? '-'],
-    ];
-    if (empresa.telefono) infoRows.push(['Teléfono:', empresa.telefono]);
-    if (empresa.email)    infoRows.push(['Email:', empresa.email]);
-    infoRows.push(['Obligado Contabilidad:', empresa.obligado_contabilidad ? 'Sí' : 'No']);
-
     for (const [lbl, val] of infoRows) {
       if (iy > M + HDR_H - 10) break;
+      const rowH = Math.max(9.5, doc.heightOfString(val, { width: VAL_WIDTH }) + 2);
       doc.font('Helvetica').fontSize(6.5).fillColor(MUTED).text(lbl, IX_PAD, iy, { width: 90, lineBreak: false });
-      doc.font('Helvetica').fontSize(6.5).fillColor(DARK).text(val, IX_PAD + 92, iy, { width: INFO_W_INNER - 92, lineBreak: false });
-      iy += 9.5;
+      doc.font('Helvetica').fontSize(6.5).fillColor(DARK).text(val, IX_PAD + 92, iy, { width: VAL_WIDTH });
+      iy += rowH;
     }
 
     // Badge

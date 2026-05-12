@@ -181,12 +181,17 @@ export function generarPdfProforma(
        .text(empresa.nombre_comercial ?? empresa.razon_social ?? '', logoRight, 20, { width: infoW, lineBreak: false });
     doc.font('Helvetica').fontSize(8.5);
     doc.text(`RUC: ${empresa.ruc}`, logoRight, 38, { width: infoW, lineBreak: false });
-    if (empresa.direccion_matriz)
-      doc.text(empresa.direccion_matriz, logoRight, 50, { width: infoW, lineBreak: false });
-    if (empresa.telefono)
-      doc.text(`Tel: ${empresa.telefono}`, logoRight, 62, { width: infoW, lineBreak: false });
+    let infoY = 50;
+    if (empresa.direccion_matriz) {
+      doc.text(empresa.direccion_matriz, logoRight, infoY, { width: infoW });
+      infoY = doc.y + 2;
+    }
+    if (empresa.telefono) {
+      doc.text(`Tel: ${empresa.telefono}`, logoRight, infoY, { width: infoW, lineBreak: false });
+      infoY += 12;
+    }
     if (empresa.email)
-      doc.text(empresa.email, logoRight, 74, { width: infoW, lineBreak: false });
+      doc.text(empresa.email, logoRight, infoY, { width: infoW, lineBreak: false });
 
     // ── BADGE PROFORMA ────────────────────────────────────────────────────────
     const BX = W - M - BADGE_W;

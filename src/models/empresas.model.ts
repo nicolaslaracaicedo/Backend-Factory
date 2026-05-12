@@ -1,4 +1,7 @@
 import pool from '../config/database';
+import { cacheGet, cacheSet, cacheDel, TTL } from '../utils/cache';
+
+const key = (id: number) => `empresa:${id}`;
 
 export interface EmpresaUpdate {
   razon_social?: string;
@@ -59,11 +62,16 @@ export interface Empresa {
 
 export const EmpresaModel = {
   async findById(id: number): Promise<Empresa | null> {
+    const cached = await cacheGet<Empresa>(key(id));
+    if (cached) return cached;
+
     const result = await pool.query<Empresa>(
       'SELECT * FROM empresas WHERE id = $1',
       [id]
     );
-    return result.rows[0] ?? null;
+    const empresa = result.rows[0] ?? null;
+    if (empresa) await cacheSet(key(id), empresa, TTL.EMPRESA);
+    return empresa;
   },
 
   async getLogoUrl(id: number): Promise<string | null> {
@@ -85,6 +93,7 @@ export const EmpresaModel = {
       `UPDATE empresas SET ${sets}, updated_at = NOW() WHERE id = $${campos.length + 1} RETURNING *`,
       [...valores, id]
     );
+    await cacheDel(key(id));
     return result.rows[0] ?? null;
   },
 };

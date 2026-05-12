@@ -1,4 +1,7 @@
 import pool from '../config/database';
+import { cacheGet, cacheSet, cacheDel, TTL } from '../utils/cache';
+
+const key = (id: number) => `cli:${id}`;
 
 export interface TipoIdentificacion {
   id: string;
@@ -75,11 +78,16 @@ export const ClienteModel = {
   },
 
   async findById(id: number): Promise<Cliente | null> {
+    const cached = await cacheGet<Cliente>(key(id));
+    if (cached) return cached;
+
     const result = await pool.query<Cliente>(
       'SELECT * FROM clientes WHERE id = $1',
       [id]
     );
-    return result.rows[0] ?? null;
+    const cliente = result.rows[0] ?? null;
+    if (cliente) await cacheSet(key(id), cliente, TTL.CLIENTE);
+    return cliente;
   },
 
   async findByIdentificacion(empresaId: number, identificacion: string): Promise<Cliente | null> {
@@ -120,6 +128,7 @@ export const ClienteModel = {
       `UPDATE clientes SET ${sets} WHERE id = $${campos.length + 1} RETURNING *`,
       [...valores, id]
     );
+    await cacheDel(key(id));
     return result.rows[0] ?? null;
   },
 
@@ -128,6 +137,7 @@ export const ClienteModel = {
       'UPDATE clientes SET estado = $1 WHERE id = $2 RETURNING *',
       [estado, id]
     );
+    await cacheDel(key(id));
     return result.rows[0] ?? null;
   },
 

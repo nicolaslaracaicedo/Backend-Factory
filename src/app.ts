@@ -29,6 +29,7 @@ import recurrentesRoutes from './routes/recurrentes.routes';
 import logSriRoutes from './routes/log_sri.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import { iniciarCronRecurrentes } from './utils/cron-recurrentes';
+import { initRedis } from './config/redis';
 
 dotenv.config();
 
@@ -118,6 +119,8 @@ app.use('/api/log-sri', logSriRoutes);
 
 // RUTAS DASHBOARD
 app.use('/api/dashboard', dashboardRoutes);
+
+initRedis();
 
 pool.query('SELECT 1')
   .then(() => {

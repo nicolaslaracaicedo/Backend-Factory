@@ -1,4 +1,7 @@
 import pool from '../config/database';
+import { cacheGet, cacheSet, cacheDel, TTL } from '../utils/cache';
+
+const key = (id: number) => `prod:${id}`;
 
 export interface Producto {
   id: number;
@@ -107,6 +110,9 @@ export const ProductoModel = {
   },
 
   async findById(id: number): Promise<Producto | null> {
+    const cached = await cacheGet<Producto>(key(id));
+    if (cached) return cached;
+
     const result = await pool.query(
       `SELECT p.*, g.nombre AS grupo_nombre,
               iv.codigo AS iva_codigo, iv.nombre AS iva_nombre, iv.porcentaje AS iva_porcentaje
@@ -116,7 +122,9 @@ export const ProductoModel = {
        WHERE p.id = $1`,
       [id]
     );
-    return result.rows[0] ?? null;
+    const producto = result.rows[0] ?? null;
+    if (producto) await cacheSet(key(id), producto, TTL.PRODUCTO);
+    return producto;
   },
 
   async findByCodigo(empresaId: number, codigo: string): Promise<Producto | null> {
@@ -165,6 +173,7 @@ export const ProductoModel = {
       `UPDATE productos SET ${sets} WHERE id = $${campos.length + 1} RETURNING *`,
       [...valores, id]
     );
+    await cacheDel(key(id));
     return result.rows[0] ?? null;
   },
 
@@ -173,6 +182,7 @@ export const ProductoModel = {
       'UPDATE productos SET estado = $1 WHERE id = $2 RETURNING *',
       [estado, id]
     );
+    await cacheDel(key(id));
     return result.rows[0] ?? null;
   },
 };
