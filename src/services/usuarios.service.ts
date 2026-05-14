@@ -1,9 +1,27 @@
 import bcrypt from 'bcryptjs';
 import { UsuarioModel } from '../models/usuarios.model';
+import { PuntoEmisionModel } from '../models/puntos_emision.model';
 import { validarCedula, validarEmail, validarPassword, validarTelefono } from '../utils/validators';
 
 const ESTADOS_VALIDOS = ['ACTIVO', 'INACTIVO'];
 const TIPOS_IDENTIFICACION_VALIDOS = ['04', '05', '06', '07', '08'];
+
+async function resolverPuntoEmisionDefault(
+  body: Record<string, unknown>,
+  empresaId: number
+): Promise<number | null> {
+  if (body['id_punto_emision_default'] === null || body['id_punto_emision_default'] === undefined) {
+    return null;
+  }
+  const id = Number(body['id_punto_emision_default']);
+  if (isNaN(id)) throw new Error('id_punto_emision_default inválido.');
+  const pe = await PuntoEmisionModel.findById(id);
+  if (!pe || pe.id_empresa !== empresaId)
+    throw new Error('Punto de emisión no encontrado o no pertenece a la empresa.');
+  if (pe.estado !== 'ACTIVO')
+    throw new Error('El punto de emisión seleccionado no está activo.');
+  return id;
+}
 
 export const UsuarioService = {
   async listar(empresaId: number) {
@@ -62,6 +80,7 @@ export const UsuarioService = {
     if (identificacionExiste) throw new Error('Ya existe un usuario con esa identificación en esta empresa.');
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const id_punto_emision_default = await resolverPuntoEmisionDefault(body, empresaId);
 
     return UsuarioModel.create({
       id_empresa: empresaId,
@@ -74,6 +93,7 @@ export const UsuarioService = {
       password: hashedPassword,
       telefono,
       direccion,
+      id_punto_emision_default,
     });
   },
 
@@ -134,9 +154,13 @@ export const UsuarioService = {
       hashedPassword = await bcrypt.hash(body['password'], 10);
     }
 
+    const id_punto_emision_default = 'id_punto_emision_default' in body
+      ? await resolverPuntoEmisionDefault(body, empresaId)
+      : usuario.id_punto_emision_default;
+
     const updated = await UsuarioModel.update(id, empresaId, {
       id_rol, tipo_identificacion, identificacion, nombre, apellido, email,
-      telefono, direccion, password: hashedPassword,
+      telefono, direccion, password: hashedPassword, id_punto_emision_default,
     });
     if (!updated) throw new Error('No se pudo actualizar el usuario.');
     return updated;

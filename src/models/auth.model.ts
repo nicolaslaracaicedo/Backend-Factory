@@ -8,6 +8,9 @@ export interface Usuario {
   nombre: string;
   estado: string;
   id_rol: number;
+  id_punto_emision_default: number | null;
+  punto_emision_default_codigo: string | null;
+  punto_emision_default_descripcion: string | null;
 }
 
 export interface Empresa {
@@ -31,7 +34,11 @@ export const AuthModel = {
     empresaId: number
   ): Promise<Usuario | null> {
     const result = await pool.query<Usuario>(
-      "SELECT * FROM usuarios WHERE identificacion = $1 AND id_empresa = $2 AND estado = 'ACTIVO'",
+      `SELECT u.*, pe.codigo AS punto_emision_default_codigo,
+              pe.descripcion AS punto_emision_default_descripcion
+       FROM usuarios u
+       LEFT JOIN puntos_emision pe ON pe.id = u.id_punto_emision_default
+       WHERE u.identificacion = $1 AND u.id_empresa = $2 AND u.estado = 'ACTIVO'`,
       [identificacion, empresaId]
     );
     return result.rows[0] || null;

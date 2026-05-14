@@ -13,9 +13,12 @@ export interface Usuario {
   email: string;
   estado: string;
   ultimo_login: Date | null;
+  id_punto_emision_default: number | null;
   created_at: Date;
   updated_at: Date;
   rol_nombre?: string;
+  punto_emision_default_codigo?: string | null;
+  punto_emision_default_descripcion?: string | null;
 }
 
 export interface UsuarioCreateData {
@@ -29,6 +32,7 @@ export interface UsuarioCreateData {
   password: string;
   telefono?: string | null;
   direccion?: string | null;
+  id_punto_emision_default?: number | null;
 }
 
 export interface UsuarioUpdateData {
@@ -41,6 +45,7 @@ export interface UsuarioUpdateData {
   telefono?: string | null;
   direccion?: string | null;
   password?: string;
+  id_punto_emision_default?: number | null;
 }
 
 export const UsuarioModel = {
@@ -48,10 +53,13 @@ export const UsuarioModel = {
     const result = await pool.query<Usuario>(
       `SELECT u.id, u.id_empresa, u.id_rol, u.tipo_identificacion, u.identificacion,
               u.nombre, u.apellido, u.telefono, u.direccion, u.email,
-              u.estado, u.ultimo_login, u.created_at, u.updated_at,
-              r.nombre AS rol_nombre
+              u.estado, u.ultimo_login, u.id_punto_emision_default, u.created_at, u.updated_at,
+              r.nombre AS rol_nombre,
+              pe.codigo AS punto_emision_default_codigo,
+              pe.descripcion AS punto_emision_default_descripcion
        FROM usuarios u
        JOIN roles r ON r.id = u.id_rol
+       LEFT JOIN puntos_emision pe ON pe.id = u.id_punto_emision_default
        WHERE u.id_empresa = $1
        ORDER BY u.nombre ASC`,
       [empresaId]
@@ -63,10 +71,13 @@ export const UsuarioModel = {
     const result = await pool.query<Usuario>(
       `SELECT u.id, u.id_empresa, u.id_rol, u.tipo_identificacion, u.identificacion,
               u.nombre, u.apellido, u.telefono, u.direccion, u.email,
-              u.estado, u.ultimo_login, u.created_at, u.updated_at,
-              r.nombre AS rol_nombre
+              u.estado, u.ultimo_login, u.id_punto_emision_default, u.created_at, u.updated_at,
+              r.nombre AS rol_nombre,
+              pe.codigo AS punto_emision_default_codigo,
+              pe.descripcion AS punto_emision_default_descripcion
        FROM usuarios u
        JOIN roles r ON r.id = u.id_rol
+       LEFT JOIN puntos_emision pe ON pe.id = u.id_punto_emision_default
        WHERE u.id = $1 AND u.id_empresa = $2`,
       [id, empresaId]
     );
@@ -92,14 +103,15 @@ export const UsuarioModel = {
   async create(data: UsuarioCreateData): Promise<Usuario> {
     const result = await pool.query<Usuario>(
       `INSERT INTO usuarios
-         (id_empresa, id_rol, tipo_identificacion, identificacion, nombre, apellido, email, password, telefono, direccion, estado)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'ACTIVO')
+         (id_empresa, id_rol, tipo_identificacion, identificacion, nombre, apellido, email, password, telefono, direccion, estado, id_punto_emision_default)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'ACTIVO',$11)
        RETURNING id, id_empresa, id_rol, tipo_identificacion, identificacion,
-                 nombre, apellido, telefono, direccion, email, estado, ultimo_login, created_at, updated_at`,
+                 nombre, apellido, telefono, direccion, email, estado, ultimo_login, id_punto_emision_default, created_at, updated_at`,
       [
         data.id_empresa, data.id_rol, data.tipo_identificacion, data.identificacion,
         data.nombre, data.apellido, data.email, data.password,
         data.telefono ?? null, data.direccion ?? null,
+        data.id_punto_emision_default ?? null,
       ]
     );
     return result.rows[0]!;
@@ -109,12 +121,14 @@ export const UsuarioModel = {
     const fields: string[] = [
       'id_rol = $1', 'tipo_identificacion = $2', 'identificacion = $3',
       'nombre = $4', 'apellido = $5', 'email = $6',
-      'telefono = $7', 'direccion = $8', 'updated_at = NOW()',
+      'telefono = $7', 'direccion = $8',
+      'id_punto_emision_default = $9', 'updated_at = NOW()',
     ];
     const params: unknown[] = [
       data.id_rol, data.tipo_identificacion, data.identificacion,
       data.nombre, data.apellido, data.email,
       data.telefono ?? null, data.direccion ?? null,
+      data.id_punto_emision_default ?? null,
     ];
 
     if (data.password) {
@@ -129,7 +143,8 @@ export const UsuarioModel = {
       `UPDATE usuarios SET ${fields.join(', ')}
        WHERE id = $${whereIdx - 1} AND id_empresa = $${whereIdx}
        RETURNING id, id_empresa, id_rol, tipo_identificacion, identificacion,
-                 nombre, apellido, telefono, direccion, email, estado, ultimo_login, created_at, updated_at`,
+                 nombre, apellido, telefono, direccion, email, estado, ultimo_login,
+                 id_punto_emision_default, created_at, updated_at`,
       params
     );
     return result.rows[0] ?? null;

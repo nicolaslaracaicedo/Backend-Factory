@@ -75,6 +75,7 @@ CREATE TABLE usuarios (
   id                  SERIAL PRIMARY KEY,
   id_empresa          INT NOT NULL REFERENCES empresas(id),
   id_rol              INT NOT NULL REFERENCES roles(id),
+  id_punto_emision_default INT REFERENCES puntos_emision(id),
   tipo_identificacion VARCHAR(2) DEFAULT '05' REFERENCES tipos_identificacion(id),
   identificacion      VARCHAR(13),
   nombre              VARCHAR(100) NOT NULL,
@@ -83,10 +84,11 @@ CREATE TABLE usuarios (
   direccion           VARCHAR(500),
   email               VARCHAR(150) NOT NULL,
   password            TEXT NOT NULL,
-  estado              VARCHAR(20) DEFAULT 'ACTIVO',
-  ultimo_login        TIMESTAMP,
-  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  estado                    VARCHAR(20) DEFAULT 'ACTIVO',
+  ultimo_login              TIMESTAMP,
+  id_punto_emision_default  INT REFERENCES puntos_emision(id),
+  created_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(id_empresa, email)
 );
 

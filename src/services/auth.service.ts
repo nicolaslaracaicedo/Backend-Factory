@@ -19,6 +19,11 @@ export interface LoginResult {
     cedula: string;
     empresa: number;
     rol: number;
+    punto_emision_default: {
+      id: number;
+      codigo: string;
+      descripcion: string | null;
+    } | null;
   };
 }
 
@@ -77,6 +82,13 @@ export const AuthService = {
         cedula: usuario.identificacion,
         empresa: empresa.id,
         rol: usuario.id_rol,
+        punto_emision_default: usuario.id_punto_emision_default
+          ? {
+              id: usuario.id_punto_emision_default,
+              codigo: usuario.punto_emision_default_codigo!,
+              descripcion: usuario.punto_emision_default_descripcion ?? null,
+            }
+          : null,
       },
     };
   },
