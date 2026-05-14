@@ -101,12 +101,11 @@ export const UsuarioModel = {
   },
 
   async create(data: UsuarioCreateData): Promise<Usuario> {
-    const result = await pool.query<Usuario>(
+    const result = await pool.query<{ id: number }>(
       `INSERT INTO usuarios
          (id_empresa, id_rol, tipo_identificacion, identificacion, nombre, apellido, email, password, telefono, direccion, estado, id_punto_emision_default)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'ACTIVO',$11)
-       RETURNING id, id_empresa, id_rol, tipo_identificacion, identificacion,
-                 nombre, apellido, telefono, direccion, email, estado, ultimo_login, id_punto_emision_default, created_at, updated_at`,
+       RETURNING id`,
       [
         data.id_empresa, data.id_rol, data.tipo_identificacion, data.identificacion,
         data.nombre, data.apellido, data.email, data.password,
@@ -114,7 +113,7 @@ export const UsuarioModel = {
         data.id_punto_emision_default ?? null,
       ]
     );
-    return result.rows[0]!;
+    return (await UsuarioModel.findById(result.rows[0]!.id, data.id_empresa))!;
   },
 
   async update(id: number, empresaId: number, data: UsuarioUpdateData): Promise<Usuario | null> {
@@ -139,15 +138,14 @@ export const UsuarioModel = {
     params.push(id, empresaId);
     const whereIdx = params.length;
 
-    const result = await pool.query<Usuario>(
+    const result = await pool.query<{ id: number }>(
       `UPDATE usuarios SET ${fields.join(', ')}
        WHERE id = $${whereIdx - 1} AND id_empresa = $${whereIdx}
-       RETURNING id, id_empresa, id_rol, tipo_identificacion, identificacion,
-                 nombre, apellido, telefono, direccion, email, estado, ultimo_login,
-                 id_punto_emision_default, created_at, updated_at`,
+       RETURNING id`,
       params
     );
-    return result.rows[0] ?? null;
+    if (!result.rows[0]) return null;
+    return UsuarioModel.findById(result.rows[0].id, empresaId);
   },
 
   async cambiarEstado(id: number, empresaId: number, estado: string): Promise<Usuario | null> {
