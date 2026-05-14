@@ -22,7 +22,7 @@ const FORMAS_PAGO_VALIDAS = ['01', '15', '16', '17', '18', '19', '20', '21'];
 const TIPOS_PAGO_VALIDOS = ['CONTADO', 'CREDITO'];
 
 function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+  return Math.round(n * 100 + 1e-9) / 100;
 }
 
 function calcularLinea(d: {
