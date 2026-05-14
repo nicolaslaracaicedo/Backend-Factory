@@ -5,8 +5,8 @@ import fs from 'fs';
 import type { FacturaConDetalles } from '../models/facturas.model';
 import type { Empresa } from '../models/empresas.model';
 
-const fmt  = (n: number | string) => Number(n).toFixed(2);
-const fmt4 = (n: number | string) => Number(n).toFixed(4);
+const fmt  = (n: number | string) => (Math.trunc(Number(n) * 100) / 100).toFixed(2);
+const fmt4 = (n: number | string) => (Math.trunc(Number(n) * 10000) / 10000).toFixed(4);
 
 const fmtDate = (d: string | null | undefined): string => {
   if (!d) return '-';

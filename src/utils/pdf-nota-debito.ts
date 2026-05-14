@@ -5,7 +5,7 @@ import fs from 'fs';
 import type { NotaDebitoConDetalles } from '../models/notas_debito.model';
 import type { Empresa } from '../models/empresas.model';
 
-const fmt = (n: number | string) => Number(n).toFixed(2);
+const fmt = (n: number | string) => (Math.trunc(Number(n) * 100) / 100).toFixed(2);
 
 const fmtDate = (d: string | null | undefined): string => {
   if (!d) return '-';

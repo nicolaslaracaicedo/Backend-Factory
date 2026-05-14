@@ -46,16 +46,18 @@ function agruparIva(detalles: FacturaConDetalles['detalles']): GrupoIva[] {
   for (const d of detalles) {
     const cp = CODIGO_PORCENTAJE[d.codigo_iva] ?? '4';
     const subtotal = Number(d.subtotal);
+    const valIce = Number(d.valor_ice ?? 0);
     const valor_iva = Number(d.valor_iva);
+    const baseIva = subtotal + valIce;
     const g = grupos.get(cp);
     if (g) {
-      g.baseImponible += subtotal;
+      g.baseImponible += baseIva;
       g.valor += valor_iva;
     } else {
       grupos.set(cp, {
         codigoPorcentaje: cp,
         tarifa: Number(d.porcentaje_iva),
-        baseImponible: subtotal,
+        baseImponible: baseIva,
         valor: valor_iva,
       });
     }
@@ -107,12 +109,16 @@ export function generarXmlFactura(
   const irbpnrRedondeado    = Number(fmt2(factura.valor_irbpnr));
   const importeTotalXml     = fmt2(subtotalRedondeado + ivaRedondeado + iceRedondeado + irbpnrRedondeado);
 
+  const cantidadIrbpnr = factura.detalles.reduce(
+    (s, d) => (Number(d.valor_irbpnr ?? 0) > 0 ? s + Number(d.cantidad) : s),
+    0
+  );
   const irbpnrXml = irbpnrRedondeado > 0
     ? `<totalImpuesto>` +
       `<codigo>5</codigo>` +
       `<codigoPorcentaje>5001</codigoPorcentaje>` +
       `<descuentoAdicional>0.00</descuentoAdicional>` +
-      `<baseImponible>${fmt2(factura.subtotal_sin_impuesto)}</baseImponible>` +
+      `<baseImponible>${fmt2(cantidadIrbpnr)}</baseImponible>` +
       `<valor>${fmt2(irbpnrRedondeado)}</valor>` +
       `</totalImpuesto>`
     : '';
@@ -166,7 +172,7 @@ export function generarXmlFactura(
         `<codigo>2</codigo>` +
         `<codigoPorcentaje>${cp}</codigoPorcentaje>` +
         `<tarifa>${fmt2(d.porcentaje_iva)}</tarifa>` +
-        `<baseImponible>${fmt2(d.subtotal)}</baseImponible>` +
+        `<baseImponible>${fmt2(Number(d.subtotal) + Number(d.valor_ice ?? 0))}</baseImponible>` +
         `<valor>${fmt2(d.valor_iva)}</valor>` +
         `</impuesto>` +
         (Number(d.valor_ice ?? 0) > 0
@@ -183,7 +189,7 @@ export function generarXmlFactura(
             `<codigo>5</codigo>` +
             `<codigoPorcentaje>5001</codigoPorcentaje>` +
             `<tarifa>0.02</tarifa>` +
-            `<baseImponible>${fmt2(d.subtotal)}</baseImponible>` +
+            `<baseImponible>${fmt2(d.cantidad)}</baseImponible>` +
             `<valor>${fmt2(Number((d as any).valor_irbpnr))}</valor>` +
             `</impuesto>`
           : '') +
