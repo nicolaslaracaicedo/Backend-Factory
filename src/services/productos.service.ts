@@ -5,6 +5,24 @@ import { CodigoIvaModel } from '../models/codigos_iva.model';
 const ESTADOS_VALIDOS = ['ACTIVO', 'INACTIVO', 'TODOS'];
 const TIPOS_VALIDOS   = ['PRODUCTO', 'SERVICIO'];
 
+function calcularPrecioFinal(p: {
+  precio: number | string;
+  porcentaje_iva: number | string;
+  tiene_ice: boolean;
+  porcentaje_ice: number | string;
+  tiene_irbpnr: boolean;
+  valor_unitario_irbpnr: number | string;
+}): number {
+  const precio    = Number(p.precio);
+  const pctIva    = Number(p.porcentaje_iva);
+  const pctIce    = Number(p.porcentaje_ice);
+  const valIrbpnr = Number(p.valor_unitario_irbpnr);
+  const ice       = p.tiene_ice    ? precio * (pctIce / 100) : 0;
+  const iva       = (precio + ice) * (pctIva / 100);
+  const irbpnr    = p.tiene_irbpnr ? valIrbpnr               : 0;
+  return Math.round((precio + ice + iva + irbpnr) * 100) / 100;
+}
+
 export const ProductoService = {
   async listar(empresaId: number, query: Record<string, string | undefined>) {
     const estado = query['estado'] ? query['estado'].toUpperCase() : 'TODOS';
@@ -17,14 +35,15 @@ export const ProductoService = {
     const id_grupo = query['id_grupo'] ? Number(query['id_grupo']) : undefined;
 
     const filtros: ProductoFiltros = { estado, tipo, id_grupo, id_iva, search: query['search'] };
-    return ProductoModel.findAllByEmpresa(empresaId, filtros);
+    const productos = await ProductoModel.findAllByEmpresa(empresaId, filtros);
+    return productos.map((p) => ({ ...p, precio_final: calcularPrecioFinal(p) }));
   },
 
   async verDetalle(id: number, empresaId: number) {
     const producto = await ProductoModel.findById(id);
     if (!producto) throw new Error('Producto no encontrado.');
     if (producto.id_empresa !== empresaId) throw new Error('No tienes permiso sobre este producto.');
-    return producto;
+    return { ...producto, precio_final: calcularPrecioFinal(producto) };
   },
 
   async crear(empresaId: number, body: Record<string, unknown>) {
