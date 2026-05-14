@@ -13,8 +13,8 @@ import { SecuencialModel } from '../models/secuenciales.model';
 const ESTADOS_VALIDOS = ['PENDIENTE', 'APROBADA', 'RECHAZADA', 'VENCIDA', 'CONVERTIDA'];
 const CODIGOS_IVA_VALIDOS = ['0', '2', '3', '4', '5'];
 
-function round4(n: number): number {
-  return Math.round(n * 10000) / 10000;
+function round2(n: number): number {
+  return Math.round(n * 100 + 1e-9) / 100;
 }
 
 function calcularLinea(d: {
@@ -25,9 +25,9 @@ function calcularLinea(d: {
   valor_ice: number;
   valor_irbpnr: number;
 }): { subtotal: number; valor_iva: number; total: number } {
-  const subtotal = round4(d.cantidad * d.precio_unitario - d.descuento);
-  const valor_iva = round4(subtotal * (d.porcentaje_iva / 100));
-  const total = round4(subtotal + valor_iva + d.valor_ice + d.valor_irbpnr);
+  const subtotal = round2(d.cantidad * d.precio_unitario - d.descuento);
+  const valor_iva = round2((subtotal + d.valor_ice) * (d.porcentaje_iva / 100));
+  const total = round2(subtotal + valor_iva + d.valor_ice + d.valor_irbpnr);
   return { subtotal, valor_iva, total };
 }
 
@@ -53,14 +53,14 @@ function calcularTotales(detalles: DetalleProformaInput[]): {
     }
   }
 
-  const subtotal_sin_impuesto = round4(sub0 + subIva);
+  const subtotal_sin_impuesto = round2(sub0 + subIva);
   return {
     subtotal_sin_impuesto,
-    subtotal_0: round4(sub0),
-    subtotal_iva: round4(subIva),
-    descuento_total: round4(descuentoTotal),
-    iva_total: round4(ivaTotal),
-    total: round4(subtotal_sin_impuesto + ivaTotal + iceTotal + irbpnrTotal),
+    subtotal_0: round2(sub0),
+    subtotal_iva: round2(subIva),
+    descuento_total: round2(descuentoTotal),
+    iva_total: round2(ivaTotal),
+    total: round2(subtotal_sin_impuesto + ivaTotal + iceTotal + irbpnrTotal),
   };
 }
 
@@ -149,12 +149,12 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
       ? String(d['codigo_ice']).trim()
       : productoData?.codigo_ice ?? null;
 
-    const subtotalBruto = round4(cantidad * precio_unitario - descuento);
+    const subtotalBruto = round2(cantidad * precio_unitario - descuento);
     const valor_ice = porcentaje_ice > 0
-      ? round4(subtotalBruto * (porcentaje_ice / 100))
+      ? round2(subtotalBruto * (porcentaje_ice / 100))
       : Number(d['valor_ice'] ?? 0);
     const valor_irbpnr = productoData?.tiene_irbpnr
-      ? round4(cantidad * productoData.valor_unitario_irbpnr)
+      ? round2(cantidad * productoData.valor_unitario_irbpnr)
       : Number(d['valor_irbpnr'] ?? 0);
 
     const { subtotal, valor_iva, total } = calcularLinea({

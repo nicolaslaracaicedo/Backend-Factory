@@ -9,8 +9,8 @@ const FRECUENCIAS_VALIDAS = ['DIARIA', 'SEMANAL', 'QUINCENAL', 'MENSUAL', 'ANUAL
 const FORMAS_PAGO_VALIDAS = ['01', '15', '16', '17', '18', '19', '20', '21'];
 const CODIGOS_IVA_VALIDOS = ['0', '2', '3', '4', '5'];
 
-function round4(n: number): number {
-  return Math.round(n * 10000) / 10000;
+function round2(n: number): number {
+  return Math.round(n * 100 + 1e-9) / 100;
 }
 
 export function calcularProximaFecha(fecha: string, frecuencia: string): string {
@@ -119,9 +119,9 @@ export async function generarFacturaDesdeRecurrente(recurrenteId: number): Promi
     const precio_unitario = Number(d.precio_unitario);
     const descuento = Number(d.descuento);
     const porcentaje_iva = Number(d.porcentaje_iva);
-    const subtotal = round4(cantidad * precio_unitario - descuento);
-    const valor_iva = round4(subtotal * (porcentaje_iva / 100));
-    const total = round4(subtotal + valor_iva);
+    const subtotal = round2(cantidad * precio_unitario - descuento);
+    const valor_iva = round2(subtotal * (porcentaje_iva / 100));
+    const total = round2(subtotal + valor_iva);
     return {
       id_producto: d.id_producto ?? undefined,
       codigo: d.codigo,
@@ -150,7 +150,7 @@ export async function generarFacturaDesdeRecurrente(recurrenteId: number): Promi
     if (d.codigo_iva === '0') sub0 += d.subtotal;
     else subIva += d.subtotal;
   }
-  const subtotal_sin_impuesto = round4(sub0 + subIva);
+  const subtotal_sin_impuesto = round2(sub0 + subIva);
   const iva_porcentaje = detallesFactura.find((d) => d.porcentaje_iva > 0)?.porcentaje_iva ?? 15.0;
 
   const factura = await FacturaModel.create({
@@ -173,16 +173,16 @@ export async function generarFacturaDesdeRecurrente(recurrenteId: number): Promi
     regimen: empresa.regimen,
     ruc: empresa.ruc,
     subtotal_sin_impuesto,
-    subtotal_0: round4(sub0),
-    subtotal_iva: round4(subIva),
+    subtotal_0: round2(sub0),
+    subtotal_iva: round2(subIva),
     subtotal_no_objeto_iva: 0,
     subtotal_exento_iva: 0,
-    descuento_total: round4(descuentoTotal),
+    descuento_total: round2(descuentoTotal),
     valor_ice: 0,
     valor_irbpnr: 0,
     iva_porcentaje,
-    iva_total: round4(ivaTotal),
-    total: round4(subtotal_sin_impuesto + ivaTotal),
+    iva_total: round2(ivaTotal),
+    total: round2(subtotal_sin_impuesto + ivaTotal),
     observacion: recurrente.descripcion,
     monto_recibido: null,
     vuelto: null,

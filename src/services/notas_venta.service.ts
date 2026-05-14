@@ -15,8 +15,8 @@ import { LogSriModel } from '../models/log_sri.model';
 
 const ESTADOS_VALIDOS = ['BORRADOR', 'ENVIADO', 'AUTORIZADO', 'RECHAZADA', 'ANULADA'];
 
-function round4(n: number): number {
-  return Math.round(n * 10000) / 10000;
+function round2(n: number): number {
+  return Math.round(n * 100 + 1e-9) / 100;
 }
 
 function parseDetalles(raw: unknown[]): DetalleNVInput[] {
@@ -46,7 +46,7 @@ function parseDetalles(raw: unknown[]): DetalleNVInput[] {
     if (isNaN(descuento) || descuento < 0)
       throw new Error(`Detalle ${orden}: 'descuento' inválido.`);
 
-    const subtotal = round4(cantidad * precio_unitario - descuento);
+    const subtotal = round2(cantidad * precio_unitario - descuento);
     const total = subtotal;
 
     const id_producto = d['id_producto'] ? Number(d['id_producto']) : undefined;
@@ -65,9 +65,9 @@ function calcularTotales(detalles: DetalleNVInput[]) {
   }
 
   return {
-    subtotal_sin_impuesto: round4(subtotal_sin_impuesto),
-    descuento_total: round4(descuento_total),
-    total: round4(subtotal_sin_impuesto),
+    subtotal_sin_impuesto: round2(subtotal_sin_impuesto),
+    descuento_total: round2(descuento_total),
+    total: round2(subtotal_sin_impuesto),
   };
 }
 

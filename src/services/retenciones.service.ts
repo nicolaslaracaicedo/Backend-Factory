@@ -18,8 +18,8 @@ import { LogSriModel } from '../models/log_sri.model';
 const ESTADOS_VALIDOS = ['BORRADOR', 'ENVIADO', 'AUTORIZADO', 'RECHAZADA', 'ANULADA'];
 const TIPOS_RETENCION_VALIDOS = ['1', '2', '6'];
 
-function round4(n: number): number {
-  return Math.round(n * 10000) / 10000;
+function round2(n: number): number {
+  return Math.round(n * 100 + 1e-9) / 100;
 }
 
 function parseDetalles(raw: unknown[]): DetalleRetInput[] {
@@ -47,9 +47,9 @@ function parseDetalles(raw: unknown[]): DetalleRetInput[] {
     if (isNaN(porcentaje) || porcentaje < 0)
       throw new Error(`Detalle ${orden}: 'porcentaje' inválido.`);
 
-    const valor_retenido = round4(base_imponible * (porcentaje / 100));
+    const valor_retenido = round2(base_imponible * (porcentaje / 100));
 
-    detalles.push({ tipo, codigo, descripcion, base_imponible: round4(base_imponible), porcentaje, valor_retenido, orden });
+    detalles.push({ tipo, codigo, descripcion, base_imponible: round2(base_imponible), porcentaje, valor_retenido, orden });
   }
 
   return detalles;
@@ -150,7 +150,7 @@ export const RetencioneService = {
       throw new Error('Se requiere al menos un detalle en la retención.');
     const detalles = parseDetalles(body['detalles'] as unknown[]);
 
-    const total_retenido = round4(detalles.reduce((sum, d) => sum + d.valor_retenido, 0));
+    const total_retenido = round2(detalles.reduce((sum, d) => sum + d.valor_retenido, 0));
 
     const fecha_emision = typeof body['fecha_emision'] === 'string'
       ? body['fecha_emision']
@@ -192,7 +192,7 @@ export const RetencioneService = {
       throw new Error('Se requiere al menos un detalle en la retención.');
     const detalles = parseDetalles(body['detalles'] as unknown[]);
 
-    const total_retenido = round4(detalles.reduce((sum, d) => sum + d.valor_retenido, 0));
+    const total_retenido = round2(detalles.reduce((sum, d) => sum + d.valor_retenido, 0));
     const fecha_emision = typeof body['fecha_emision'] === 'string' ? body['fecha_emision'] : r.fecha_emision;
 
     const updateData: RetencionUpdateData = {

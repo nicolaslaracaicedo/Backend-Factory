@@ -18,8 +18,8 @@ import { LogSriModel } from '../models/log_sri.model';
 const ESTADOS_VALIDOS = ['BORRADOR', 'ENVIADO', 'AUTORIZADO', 'RECHAZADA', 'ANULADA'];
 const CODIGOS_IVA_VALIDOS = ['0', '2', '3', '4', '5'];
 
-function round4(n: number): number {
-  return Math.round(n * 10000) / 10000;
+function round2(n: number): number {
+  return Math.round(n * 100 + 1e-9) / 100;
 }
 
 function parseMotivos(raw: unknown[]): DetalleNDInput[] {
@@ -36,7 +36,7 @@ function parseMotivos(raw: unknown[]): DetalleNDInput[] {
     if (isNaN(valor) || valor <= 0)
       throw new Error(`Motivo ${orden}: 'valor' debe ser mayor a 0.`);
 
-    motivos.push({ razon, valor: round4(valor), orden });
+    motivos.push({ razon, valor: round2(valor), orden });
   }
 
   return motivos;
@@ -46,9 +46,9 @@ function calcularTotales(
   motivos: DetalleNDInput[],
   porcentajeIva: number
 ): { subtotal: number; iva_total: number; total: number } {
-  const subtotal = round4(motivos.reduce((sum, m) => sum + m.valor, 0));
-  const iva_total = round4(subtotal * (porcentajeIva / 100));
-  const total = round4(subtotal + iva_total);
+  const subtotal = round2(motivos.reduce((sum, m) => sum + m.valor, 0));
+  const iva_total = round2(subtotal * (porcentajeIva / 100));
+  const total = round2(subtotal + iva_total);
   return { subtotal, iva_total, total };
 }
 
