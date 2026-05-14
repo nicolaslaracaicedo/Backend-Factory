@@ -194,6 +194,48 @@ async function parseDetalles(empresaId: number, raw: unknown[]): Promise<Detalle
   return detalles;
 }
 
+async function validarCantidadesContraFactura(
+  idFacturaRef: number,
+  detallesNc: DetalleNCInput[],
+  excluirNcId?: number
+): Promise<void> {
+  const factura = await FacturaModel.findByIdConDetalles(idFacturaRef);
+  if (!factura) return;
+
+  const acreditado = await NotaCreditoModel.cantidadAcreditadaPorFactura(idFacturaRef, excluirNcId);
+  const yaAcreditado = new Map<string, number>();
+  for (const row of acreditado) {
+    yaAcreditado.set(row.codigo, Number(row.cantidad_acreditada));
+  }
+
+  const cantidadOriginal = new Map<string, number>();
+  for (const d of factura.detalles) {
+    cantidadOriginal.set(d.codigo, Number(d.cantidad));
+  }
+
+  for (const d of detallesNc) {
+    const original = cantidadOriginal.get(d.codigo);
+    if (original === undefined) {
+      throw new Error(
+        `El producto con código "${d.codigo}" no existe en la factura referenciada.`
+      );
+    }
+    const disponible = original - (yaAcreditado.get(d.codigo) ?? 0);
+    if (d.cantidad > disponible + 1e-9) {
+      throw new Error(
+        `Detalle "${d.codigo}": la cantidad a acreditar (${d.cantidad}) supera la cantidad disponible (${disponible}) de la factura original.`
+      );
+    }
+
+    const detOriginal = factura.detalles.find((fd) => fd.codigo === d.codigo)!;
+    if (d.precio_unitario > Number(detOriginal.precio_unitario) + 1e-9) {
+      throw new Error(
+        `Detalle "${d.codigo}": el precio unitario (${d.precio_unitario}) no puede ser mayor al precio original (${detOriginal.precio_unitario}).`
+      );
+    }
+  }
+}
+
 async function resolverFacturaRef(
   body: Record<string, unknown>,
   empresaId: number
@@ -309,6 +351,10 @@ export const NotaCreditoService = {
       throw new Error('Se requiere al menos un detalle en la nota de crédito.');
     const detalles = await parseDetalles(empresaId, body['detalles'] as unknown[]);
 
+    if (facturaRef.id_factura_ref) {
+      await validarCantidadesContraFactura(facturaRef.id_factura_ref, detalles);
+    }
+
     const fecha_emision =
       typeof body['fecha_emision'] === 'string'
         ? body['fecha_emision']
@@ -356,6 +402,10 @@ export const NotaCreditoService = {
     if (!Array.isArray(body['detalles']) || (body['detalles'] as unknown[]).length === 0)
       throw new Error('Se requiere al menos un detalle en la nota de crédito.');
     const detalles = await parseDetalles(empresaId, body['detalles'] as unknown[]);
+
+    if (facturaRef.id_factura_ref) {
+      await validarCantidadesContraFactura(facturaRef.id_factura_ref, detalles, id);
+    }
 
     const fecha_emision =
       typeof body['fecha_emision'] === 'string' ? body['fecha_emision'] : nc.fecha_emision;

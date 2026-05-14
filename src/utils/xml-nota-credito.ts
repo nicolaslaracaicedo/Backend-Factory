@@ -50,12 +50,14 @@ function agruparIva(detalles: NotaCreditoConDetalles['detalles']): GrupoIva[] {
   const grupos = new Map<string, GrupoIva>();
   for (const d of detalles) {
     const cp = CODIGO_PORCENTAJE[d.codigo_iva] ?? '4';
+    const valIce = Number(d.valor_ice ?? 0);
+    const baseIva = Number(d.subtotal) + valIce;
     const g = grupos.get(cp);
     if (g) {
-      g.baseImponible += d.subtotal;
+      g.baseImponible += baseIva;
       g.valor += d.valor_iva;
     } else {
-      grupos.set(cp, { codigoPorcentaje: cp, tarifa: d.porcentaje_iva, baseImponible: d.subtotal, valor: d.valor_iva });
+      grupos.set(cp, { codigoPorcentaje: cp, tarifa: d.porcentaje_iva, baseImponible: baseIva, valor: d.valor_iva });
     }
   }
   return Array.from(grupos.values());
@@ -98,12 +100,15 @@ export function generarXmlNotaCredito(
   const grupos = agruparIva(nc.detalles);
   const gruposIce = agruparIce(nc.detalles);
   const irbpnrTotal = nc.detalles.reduce((s, d) => s + Number(d.valor_irbpnr ?? 0), 0);
+  const cantidadIrbpnr = nc.detalles.reduce(
+    (s, d) => (Number(d.valor_irbpnr ?? 0) > 0 ? s + Number(d.cantidad) : s), 0
+  );
 
   const irbpnrXml = irbpnrTotal > 0
     ? `<totalImpuesto>` +
       `<codigo>5</codigo>` +
       `<codigoPorcentaje>5001</codigoPorcentaje>` +
-      `<baseImponible>${fmt2(nc.subtotal_sin_impuesto)}</baseImponible>` +
+      `<baseImponible>${fmt2(cantidadIrbpnr)}</baseImponible>` +
       `<valor>${fmt2(irbpnrTotal)}</valor>` +
       `</totalImpuesto>`
     : '';
@@ -151,7 +156,7 @@ export function generarXmlNotaCredito(
         `<codigo>2</codigo>` +
         `<codigoPorcentaje>${cp}</codigoPorcentaje>` +
         `<tarifa>${fmt2(d.porcentaje_iva)}</tarifa>` +
-        `<baseImponible>${fmt2(d.subtotal)}</baseImponible>` +
+        `<baseImponible>${fmt2(Number(d.subtotal) + valIce)}</baseImponible>` +
         `<valor>${fmt2(d.valor_iva)}</valor>` +
         `</impuesto>` +
         (valIce > 0
@@ -159,7 +164,7 @@ export function generarXmlNotaCredito(
             `<codigo>3</codigo>` +
             `<codigoPorcentaje>${d.codigo_ice ?? String(Math.round(Number(d.porcentaje_ice ?? 0)))}</codigoPorcentaje>` +
             `<tarifa>${fmt2(Number(d.porcentaje_ice ?? 0))}</tarifa>` +
-            `<baseImponible>${fmt2(d.subtotal)}</baseImponible>` +
+            `<baseImponible>${fmt2(Number(d.subtotal))}</baseImponible>` +
             `<valor>${fmt2(valIce)}</valor>` +
             `</impuesto>`
           : '') +
@@ -168,7 +173,7 @@ export function generarXmlNotaCredito(
             `<codigo>5</codigo>` +
             `<codigoPorcentaje>5001</codigoPorcentaje>` +
             `<tarifa>0.02</tarifa>` +
-            `<baseImponible>${fmt2(d.subtotal)}</baseImponible>` +
+            `<baseImponible>${fmt2(d.cantidad)}</baseImponible>` +
             `<valor>${fmt2(valIrbpnr)}</valor>` +
             `</impuesto>`
           : '') +

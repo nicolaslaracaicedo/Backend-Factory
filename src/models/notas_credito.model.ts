@@ -410,6 +410,27 @@ export const NotaCreditoModel = {
     return result.rows[0] ?? null;
   },
 
+  async cantidadAcreditadaPorFactura(
+    idFacturaRef: number,
+    excluirNcId?: number
+  ): Promise<{ codigo: string; cantidad_acreditada: number }[]> {
+    const params: unknown[] = [idFacturaRef];
+    const excluirClause = excluirNcId != null
+      ? `AND nc.id <> $${params.push(excluirNcId)}`
+      : '';
+    const result = await pool.query<{ codigo: string; cantidad_acreditada: number }>(
+      `SELECT d.codigo, SUM(d.cantidad) AS cantidad_acreditada
+       FROM detalle_notas_credito d
+       JOIN notas_credito nc ON nc.id = d.id_nota_credito
+       WHERE nc.id_factura_ref = $1
+         AND nc.estado <> 'ANULADA'
+         ${excluirClause}
+       GROUP BY d.codigo`,
+      params
+    );
+    return result.rows;
+  },
+
   async actualizarEmision(
     id: number,
     data: {
