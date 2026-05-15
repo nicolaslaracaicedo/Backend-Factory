@@ -50,6 +50,21 @@ export const AuthModel = {
     );
   },
 
+  async findUsuarioById(usuarioId: number): Promise<Usuario | null> {
+    const result = await pool.query<Usuario>(
+      `SELECT * FROM usuarios WHERE id = $1 AND estado = 'ACTIVO'`,
+      [usuarioId]
+    );
+    return result.rows[0] || null;
+  },
+
+  async updatePassword(usuarioId: number, hashedPassword: string): Promise<void> {
+    await pool.query(
+      'UPDATE usuarios SET password = $1 WHERE id = $2',
+      [hashedPassword, usuarioId]
+    );
+  },
+
   async register(data: {
     ruc: string;
     identificacion: string;

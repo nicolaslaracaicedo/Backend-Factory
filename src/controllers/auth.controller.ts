@@ -61,4 +61,41 @@ export const AuthController = {
       });
     }
   },
+
+  async cambiarContrasena(req: Request, res: Response): Promise<void> {
+    try {
+      const { contrasenaActual, contrasenaNueva, confirmarContrasena } = req.body;
+
+      if (!contrasenaActual || !contrasenaNueva || !confirmarContrasena) {
+        res.status(400).json({
+          success: false,
+          message: "Todos los campos son requeridos: contrasenaActual, contrasenaNueva, confirmarContrasena",
+        });
+        return;
+      }
+
+      const usuarioId = req.usuario!.usuarioId;
+
+      await AuthService.cambiarContrasena(usuarioId, {
+        contrasenaActual,
+        contrasenaNueva,
+        confirmarContrasena,
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Contraseña actualizada correctamente",
+      });
+    } catch (error: any) {
+      const esErrorDeCliente =
+        error.message === "La contraseña actual es incorrecta." ||
+        error.message === "Las contraseñas nuevas no coinciden." ||
+        error.message === "Usuario no encontrado.";
+
+      res.status(esErrorDeCliente ? 400 : 500).json({
+        success: false,
+        message: error.message || "Error interno del servidor",
+      });
+    }
+  },
 };

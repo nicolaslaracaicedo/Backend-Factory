@@ -133,7 +133,30 @@ export const AuthService = {
     empresaId: result.empresaId,
     usuarioId: result.usuarioId
   };
-}
+},
 
+  async cambiarContrasena(usuarioId: number, data: {
+    contrasenaActual: string;
+    contrasenaNueva: string;
+    confirmarContrasena: string;
+  }): Promise<void> {
+    const { contrasenaActual, contrasenaNueva, confirmarContrasena } = data;
+
+    if (contrasenaNueva !== confirmarContrasena) {
+      throw new Error('Las contraseñas nuevas no coinciden.');
+    }
+
+    const { valido, mensaje } = validarPassword(contrasenaNueva);
+    if (!valido) throw new Error(mensaje);
+
+    const usuario = await AuthModel.findUsuarioById(usuarioId);
+    if (!usuario) throw new Error('Usuario no encontrado.');
+
+    const contrasenaValida = await bcrypt.compare(contrasenaActual, usuario.password);
+    if (!contrasenaValida) throw new Error('La contraseña actual es incorrecta.');
+
+    const hashedNueva = await bcrypt.hash(contrasenaNueva, 10);
+    await AuthModel.updatePassword(usuarioId, hashedNueva);
+  },
 
 };
