@@ -39,14 +39,14 @@ function agruparIva(detalles: LiquidacionCompraConDetalles['detalles']): GrupoIv
     const cp = CODIGO_PORCENTAJE[d.codigo_iva] ?? '4';
     const g = grupos.get(cp);
     if (g) {
-      g.baseImponible += d.subtotal;
-      g.valor += d.valor_iva;
+      g.baseImponible += Number(d.subtotal);
+      g.valor += Number(d.valor_iva);
     } else {
       grupos.set(cp, {
         codigoPorcentaje: cp,
-        tarifa: d.porcentaje_iva,
-        baseImponible: d.subtotal,
-        valor: d.valor_iva,
+        tarifa: Number(d.porcentaje_iva),
+        baseImponible: Number(d.subtotal),
+        valor: Number(d.valor_iva),
       });
     }
   }

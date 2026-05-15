@@ -190,7 +190,7 @@ export async function generarFacturaDesdeRecurrente(recurrenteId: number): Promi
     datos_adicionales: [],
   });
 
-  const proximaFecha = calcularProximaFecha(hoy, recurrente.frecuencia);
+  const proximaFecha = calcularProximaFecha(recurrente.proxima_facturacion, recurrente.frecuencia);
   await RecurrenteModel.actualizarFechasPostGeneracion(recurrenteId, hoy, proximaFecha);
 
   return { facturaId: factura.id, numero: factura.numero_comprobante ?? '' };
