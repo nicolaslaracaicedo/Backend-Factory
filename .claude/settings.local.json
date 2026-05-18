@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\edgar\\\\OneDrive\\\\Escritorio\\\\Tesis Nicolas\\\\backend\" -Force)",
+      "Bash(Select-Object Name, FullName)",
+      "Bash(Format-Table -AutoSize)"
+    ]
+  }
+}

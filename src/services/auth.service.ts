@@ -4,6 +4,7 @@ import { SignOptions } from "jsonwebtoken";
 import { AuthModel } from "../models/auth.model";
 import { JwtPayload } from "../types/jwt.types";
 import { validarCedula, validarRuc, validarEmail, validarPassword, validarTelefono } from "../utils/validators";
+import { enviarCodigoRecuperacion } from "../utils/email.service";
 
 export interface LoginInput {
   ruc: string;
@@ -134,6 +135,61 @@ export const AuthService = {
     usuarioId: result.usuarioId
   };
 },
+
+  async solicitarRecuperacion(ruc: string, cedula: string): Promise<void> {
+    if (!validarRuc(ruc)) throw new Error('RUC inválido.');
+    if (!validarCedula(cedula)) throw new Error('Cédula inválida.');
+
+    const empresa = await AuthModel.findEmpresaFullByRuc(ruc);
+    if (!empresa) throw new Error('RUC no registrado o empresa inactiva.');
+
+    const usuario = await AuthModel.findUsuarioByCedulaYEmpresa(cedula, empresa.id);
+    if (!usuario) throw new Error('No existe un usuario con esa cédula en la empresa indicada.');
+
+    if (!usuario.email) throw new Error('El usuario no tiene correo electrónico registrado.');
+
+    const codigo = String(Math.floor(10000 + Math.random() * 90000));
+
+    await AuthModel.saveCodigoRecuperacion(usuario.id, codigo);
+
+    await enviarCodigoRecuperacion(empresa, {
+      correoDestino: usuario.email,
+      nombreUsuario: `${usuario.nombre} ${usuario.apellido}`,
+      codigo,
+    });
+  },
+
+  async restablecerContrasena(data: {
+    ruc: string;
+    cedula: string;
+    codigo: string;
+    nuevaContrasena: string;
+    confirmarContrasena: string;
+  }): Promise<void> {
+    const { ruc, cedula, codigo, nuevaContrasena, confirmarContrasena } = data;
+
+    if (!validarRuc(ruc)) throw new Error('RUC inválido.');
+    if (!validarCedula(cedula)) throw new Error('Cédula inválida.');
+
+    if (nuevaContrasena !== confirmarContrasena)
+      throw new Error('Las contraseñas nuevas no coinciden.');
+
+    const { valido, mensaje } = validarPassword(nuevaContrasena);
+    if (!valido) throw new Error(mensaje);
+
+    const empresa = await AuthModel.findEmpresaByRuc(ruc);
+    if (!empresa) throw new Error('RUC no registrado o empresa inactiva.');
+
+    const usuario = await AuthModel.findUsuarioByCedulaYEmpresa(cedula, empresa.id);
+    if (!usuario) throw new Error('No existe un usuario con esa cédula en la empresa indicada.');
+
+    const codigoRegistro = await AuthModel.findCodigoValido(usuario.id, codigo);
+    if (!codigoRegistro) throw new Error('Código inválido o expirado.');
+
+    const hashedNueva = await bcrypt.hash(nuevaContrasena, 10);
+    await AuthModel.updatePassword(usuario.id, hashedNueva);
+    await AuthModel.marcarCodigoUsado(codigoRegistro.id);
+  },
 
   async cambiarContrasena(usuarioId: number, data: {
     contrasenaActual: string;

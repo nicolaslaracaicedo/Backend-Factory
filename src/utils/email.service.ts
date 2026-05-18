@@ -64,6 +64,62 @@ function buildHtml(empresa: Empresa, opts: EnvioDocumentoOpts): string {
 </div>`;
 }
 
+export interface EnvioRecuperacionOpts {
+  correoDestino: string;
+  nombreUsuario: string;
+  codigo: string;
+}
+
+function buildHtmlRecuperacion(empresa: Empresa, opts: EnvioRecuperacionOpts): string {
+  const color = empresa.color_primario ?? '#1a56db';
+  const contacto = [empresa.email, empresa.telefono].filter(Boolean).join(' | ');
+  const nombreEmpresa = empresa.razon_social ?? empresa.nombre_comercial ?? '';
+  return `
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+  <div style="background:${color};padding:24px 32px;">
+    <h1 style="color:#fff;margin:0;font-size:20px;">Recuperación de Contraseña</h1>
+    <p style="color:#fff;opacity:.85;margin:4px 0 0;font-size:13px;">${nombreEmpresa}</p>
+  </div>
+  <div style="padding:24px 32px;">
+    <p style="color:#1e2939;">Estimado/a <strong>${opts.nombreUsuario}</strong>,</p>
+    <p style="color:#374151;">Hemos recibido una solicitud para restablecer la contraseña de su cuenta. Utilice el siguiente código de verificación:</p>
+    <div style="text-align:center;margin:28px 0;">
+      <div style="display:inline-block;background:${color};color:#fff;font-size:34px;font-weight:bold;letter-spacing:10px;padding:18px 36px;border-radius:8px;">
+        ${opts.codigo}
+      </div>
+    </div>
+    <p style="color:#374151;">Este código es válido por <strong>15 minutos</strong>. Si no solicitó el restablecimiento de su contraseña, ignore este mensaje.</p>
+    <p style="color:#64748b;font-size:13px;">Por seguridad, nunca comparta este código con nadie.</p>
+  </div>
+  <div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;">
+    <p style="color:#64748b;font-size:12px;margin:0;">${nombreEmpresa}${contacto ? ` | ${contacto}` : ''}</p>
+  </div>
+</div>`;
+}
+
+export async function enviarCodigoRecuperacion(empresa: Empresa, opts: EnvioRecuperacionOpts): Promise<void> {
+  if (!empresa.smtp_host || !empresa.smtp_user || !empresa.smtp_password_enc)
+    throw new Error('La empresa no tiene SMTP configurado. Configure el correo saliente en los datos de la empresa.');
+
+  const password = decryptSmtp(empresa.smtp_password_enc);
+
+  const transporter = nodemailer.createTransport({
+    host: empresa.smtp_host,
+    port: empresa.smtp_port ?? 587,
+    secure: empresa.smtp_secure ?? false,
+    auth: { user: empresa.smtp_user, pass: password },
+  });
+
+  const fromName = empresa.smtp_from_name ?? empresa.nombre_comercial ?? empresa.razon_social ?? '';
+
+  await transporter.sendMail({
+    from: `"${fromName}" <${empresa.smtp_user}>`,
+    to: opts.correoDestino,
+    subject: `Código de recuperación de contraseña - ${fromName}`,
+    html: buildHtmlRecuperacion(empresa, opts),
+  });
+}
+
 export async function enviarDocumentoPorCorreo(empresa: Empresa, opts: EnvioDocumentoOpts): Promise<void> {
   if (!empresa.smtp_host || !empresa.smtp_user || !empresa.smtp_password_enc)
     throw new Error('La empresa no tiene SMTP configurado. Configure el correo saliente en los datos de la empresa.');

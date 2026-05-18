@@ -1,4 +1,5 @@
 import pool from "../config/database";
+import type { Empresa as EmpresaCompleta } from "./empresas.model";
 
 export interface Usuario {
   id: number;
@@ -6,6 +7,8 @@ export interface Usuario {
   identificacion: string;
   password: string;
   nombre: string;
+  apellido: string;
+  email: string | null;
   estado: string;
   id_rol: number;
   id_punto_emision_default: number | null;
@@ -18,6 +21,15 @@ export interface Empresa {
   ruc: string;
   nombre_comercial: string;
   estado: string;
+}
+
+export interface CodigoRecuperacion {
+  id: number;
+  id_usuario: number;
+  codigo: string;
+  expira_en: Date;
+  usado: boolean;
+  created_at: Date;
 }
 
 export const AuthModel = {
@@ -62,6 +74,42 @@ export const AuthModel = {
     await pool.query(
       'UPDATE usuarios SET password = $1 WHERE id = $2',
       [hashedPassword, usuarioId]
+    );
+  },
+
+  async findEmpresaFullByRuc(ruc: string): Promise<EmpresaCompleta | null> {
+    const result = await pool.query<EmpresaCompleta>(
+      "SELECT * FROM empresas WHERE ruc = $1 AND estado = 'ACTIVO'",
+      [ruc]
+    );
+    return result.rows[0] || null;
+  },
+
+  async saveCodigoRecuperacion(usuarioId: number, codigo: string): Promise<void> {
+    await pool.query(
+      "UPDATE codigos_recuperacion SET usado = TRUE WHERE id_usuario = $1 AND usado = FALSE",
+      [usuarioId]
+    );
+    await pool.query(
+      "INSERT INTO codigos_recuperacion (id_usuario, codigo, expira_en) VALUES ($1, $2, NOW() + INTERVAL '15 minutes')",
+      [usuarioId, codigo]
+    );
+  },
+
+  async findCodigoValido(usuarioId: number, codigo: string): Promise<CodigoRecuperacion | null> {
+    const result = await pool.query<CodigoRecuperacion>(
+      `SELECT * FROM codigos_recuperacion
+       WHERE id_usuario = $1 AND codigo = $2 AND usado = FALSE AND expira_en > NOW()
+       ORDER BY created_at DESC LIMIT 1`,
+      [usuarioId, codigo]
+    );
+    return result.rows[0] || null;
+  },
+
+  async marcarCodigoUsado(codigoId: number): Promise<void> {
+    await pool.query(
+      "UPDATE codigos_recuperacion SET usado = TRUE WHERE id = $1",
+      [codigoId]
     );
   },
 

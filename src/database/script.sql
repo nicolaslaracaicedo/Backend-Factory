@@ -92,7 +92,21 @@ CREATE TABLE usuarios (
 );
 
 -- =====================================================
--- 5. FIRMA ELECTRÓNICA
+-- 5. CÓDIGOS DE RECUPERACIÓN DE CONTRASEÑA
+-- =====================================================
+CREATE TABLE codigos_recuperacion (
+  id          SERIAL PRIMARY KEY,
+  id_usuario  INT NOT NULL REFERENCES usuarios(id),
+  codigo      VARCHAR(5) NOT NULL,
+  expira_en   TIMESTAMP NOT NULL,
+  usado       BOOLEAN DEFAULT FALSE,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_codigos_recuperacion_usuario ON codigos_recuperacion(id_usuario);
+
+-- =====================================================
+-- 6. FIRMA ELECTRÓNICA
 -- =====================================================
 CREATE TABLE firmas_electronicas (
   id                SERIAL PRIMARY KEY,

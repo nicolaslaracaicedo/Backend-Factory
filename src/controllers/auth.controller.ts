@@ -62,6 +62,72 @@ export const AuthController = {
     }
   },
 
+  async solicitarRecuperacion(req: Request, res: Response): Promise<void> {
+    try {
+      const { ruc, cedula } = req.body;
+
+      if (!ruc || !cedula) {
+        res.status(400).json({ success: false, message: 'RUC y cédula son requeridos.' });
+        return;
+      }
+
+      await AuthService.solicitarRecuperacion(ruc, cedula);
+
+      res.status(200).json({
+        success: true,
+        message: 'Se ha enviado un código de recuperación al correo registrado. Válido por 15 minutos.',
+      });
+    } catch (error: any) {
+      const esErrorCliente = [
+        'RUC inválido.',
+        'Cédula inválida.',
+        'RUC no registrado o empresa inactiva.',
+        'No existe un usuario con esa cédula en la empresa indicada.',
+        'El usuario no tiene correo electrónico registrado.',
+      ].includes(error.message);
+
+      res.status(esErrorCliente ? 400 : 500).json({
+        success: false,
+        message: error.message || 'Error interno del servidor',
+      });
+    }
+  },
+
+  async restablecerContrasena(req: Request, res: Response): Promise<void> {
+    try {
+      const { ruc, cedula, codigo, nuevaContrasena, confirmarContrasena } = req.body;
+
+      if (!ruc || !cedula || !codigo || !nuevaContrasena || !confirmarContrasena) {
+        res.status(400).json({
+          success: false,
+          message: 'Todos los campos son requeridos: ruc, cedula, codigo, nuevaContrasena, confirmarContrasena.',
+        });
+        return;
+      }
+
+      await AuthService.restablecerContrasena({ ruc, cedula, codigo, nuevaContrasena, confirmarContrasena });
+
+      res.status(200).json({
+        success: true,
+        message: 'Contraseña restablecida correctamente. Ya puede iniciar sesión con su nueva contraseña.',
+      });
+    } catch (error: any) {
+      const esErrorCliente = [
+        'RUC inválido.',
+        'Cédula inválida.',
+        'Las contraseñas nuevas no coinciden.',
+        'Código inválido o expirado.',
+        'RUC no registrado o empresa inactiva.',
+        'No existe un usuario con esa cédula en la empresa indicada.',
+      ].includes(error.message);
+
+      res.status(esErrorCliente ? 400 : 500).json({
+        success: false,
+        message: error.message || 'Error interno del servidor',
+      });
+    }
+  },
+
   async cambiarContrasena(req: Request, res: Response): Promise<void> {
     try {
       const { contrasenaActual, contrasenaNueva, confirmarContrasena } = req.body;
