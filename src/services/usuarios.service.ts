@@ -4,7 +4,6 @@ import { PuntoEmisionModel } from '../models/puntos_emision.model';
 import { validarCedula, validarEmail, validarPassword, validarTelefono } from '../utils/validators';
 
 const ESTADOS_VALIDOS = ['ACTIVO', 'INACTIVO'];
-const TIPOS_IDENTIFICACION_VALIDOS = ['04', '05', '06', '07', '08'];
 
 async function resolverPuntoEmisionDefault(
   body: Record<string, unknown>,
@@ -40,15 +39,12 @@ export const UsuarioService = {
     const rolExiste = await UsuarioModel.findRol(id_rol);
     if (!rolExiste) throw new Error('El rol especificado no existe o está inactivo.');
 
-    const tipo_identificacion = typeof body['tipo_identificacion'] === 'string'
-      ? body['tipo_identificacion'].trim() : '05';
-    if (!TIPOS_IDENTIFICACION_VALIDOS.includes(tipo_identificacion))
-      throw new Error(`tipo_identificacion inválido. Válidos: ${TIPOS_IDENTIFICACION_VALIDOS.join(', ')}.`);
+    const tipo_identificacion = '05';
 
     const identificacion = typeof body['identificacion'] === 'string' ? body['identificacion'].trim() : '';
     if (!identificacion) throw new Error('La identificación es requerida.');
-    if (tipo_identificacion === '05' && !validarCedula(identificacion))
-      throw new Error('Cédula inválida.');
+    if (!validarCedula(identificacion))
+      throw new Error('La identificación debe ser una cédula ecuatoriana válida (10 dígitos).');
 
     const nombre = typeof body['nombre'] === 'string' ? body['nombre'].trim() : '';
     if (!nombre) throw new Error('El nombre es requerido.');
@@ -111,16 +107,13 @@ export const UsuarioService = {
     const rolExiste = await UsuarioModel.findRol(id_rol);
     if (!rolExiste) throw new Error('El rol especificado no existe o está inactivo.');
 
-    const tipo_identificacion = typeof body['tipo_identificacion'] === 'string'
-      ? body['tipo_identificacion'].trim() : usuario.tipo_identificacion;
-    if (!TIPOS_IDENTIFICACION_VALIDOS.includes(tipo_identificacion))
-      throw new Error(`tipo_identificacion inválido. Válidos: ${TIPOS_IDENTIFICACION_VALIDOS.join(', ')}.`);
+    const tipo_identificacion = '05';
 
     const identificacion = typeof body['identificacion'] === 'string'
       ? body['identificacion'].trim() : usuario.identificacion;
     if (!identificacion) throw new Error('La identificación es requerida.');
-    if (tipo_identificacion === '05' && !validarCedula(identificacion))
-      throw new Error('Cédula inválida.');
+    if (!validarCedula(identificacion))
+      throw new Error('La identificación debe ser una cédula ecuatoriana válida (10 dígitos).');
 
     const nombre = typeof body['nombre'] === 'string' ? body['nombre'].trim() : usuario.nombre;
     if (!nombre) throw new Error('El nombre es requerido.');

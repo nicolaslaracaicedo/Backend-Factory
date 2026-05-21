@@ -34,7 +34,7 @@ CREATE TABLE empresas (
   agente_retencion        BOOLEAN DEFAULT FALSE,
   rimpe                   BOOLEAN DEFAULT FALSE,
 
-  regimen                 VARCHAR(20) DEFAULT 'GENERAL',
+  regimen                 VARCHAR(30) DEFAULT 'GENERAL',
   ambiente                SMALLINT REFERENCES ambiente(id),
   estado                  VARCHAR(20) DEFAULT 'ACTIVO',
 
