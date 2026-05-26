@@ -355,9 +355,11 @@ export const FacturaService = {
 
     const totales = calcularTotalesFactura(detalles);
 
-    const monto_recibido = body['monto_recibido'] !== undefined && body['monto_recibido'] !== null
-      ? Number(body['monto_recibido'])
-      : null;
+    const monto_recibido = pago.tipo_pago === 'CREDITO'
+      ? null
+      : body['monto_recibido'] !== undefined && body['monto_recibido'] !== null
+        ? Number(body['monto_recibido'])
+        : null;
     if (monto_recibido !== null && !isNaN(monto_recibido) && monto_recibido < totales.total)
       throw new Error(`El monto recibido ($${monto_recibido.toFixed(2)}) es menor al total ($${totales.total.toFixed(2)}).`);
     const vuelto = monto_recibido !== null && !isNaN(monto_recibido)
@@ -423,9 +425,11 @@ export const FacturaService = {
 
     const totales = calcularTotalesFactura(detalles);
 
-    const monto_recibido_edit = body['monto_recibido'] !== undefined && body['monto_recibido'] !== null
-      ? Number(body['monto_recibido'])
-      : factura.monto_recibido !== undefined ? factura.monto_recibido : null;
+    const monto_recibido_edit = pago.tipo_pago === 'CREDITO'
+      ? null
+      : body['monto_recibido'] !== undefined && body['monto_recibido'] !== null
+        ? Number(body['monto_recibido'])
+        : factura.monto_recibido !== undefined ? factura.monto_recibido : null;
     if (monto_recibido_edit !== null && !isNaN(Number(monto_recibido_edit)) && Number(monto_recibido_edit) < totales.total)
       throw new Error(`El monto recibido ($${Number(monto_recibido_edit).toFixed(2)}) es menor al total ($${totales.total.toFixed(2)}).`);
     const vuelto_edit = monto_recibido_edit !== null && !isNaN(Number(monto_recibido_edit))

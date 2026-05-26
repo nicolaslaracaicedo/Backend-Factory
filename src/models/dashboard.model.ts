@@ -160,7 +160,7 @@ export const DashboardModel = {
     return rows;
   },
 
-  async productosMasVendidos(empresaId: number, limit = 5) {
+  async productosMasVendidos(empresaId: number, limit = 10) {
     const { rows } = await pool.query(
       `SELECT df.codigo,
               df.descripcion,
