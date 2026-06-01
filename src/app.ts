@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
+import { helmetConfig } from './config/helmet';
 import dotenv from 'dotenv';
 import path from 'path';
 import pool from './config/database';
@@ -47,43 +47,7 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
 // ── A05 · Helmet — cabeceras de seguridad HTTP ──────────────────────────────
-app.use(helmet({
-  // Política de seguridad de contenido: solo permite recursos del mismo origen
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc:     ["'self'"],
-      scriptSrc:      ["'self'"],
-      styleSrc:       ["'self'"],
-      imgSrc:         ["'self'", 'data:'],
-      connectSrc:     ["'self'"],
-      fontSrc:        ["'self'"],
-      objectSrc:      ["'none'"],
-      frameSrc:       ["'none'"],
-      upgradeInsecureRequests: [],
-    },
-  },
-  // A02 · HSTS: fuerza HTTPS por 1 año
-  strictTransportSecurity: {
-    maxAge:            31536000,
-    includeSubDomains: true,
-    preload:           true,
-  },
-  // Previene que el navegador detecte el tipo MIME automáticamente
-  noSniff: true,
-  // Previene que el sitio sea embebido en iframes (clickjacking)
-  frameguard: { action: 'deny' },
-  // Oculta que el servidor usa Express
-  hidePoweredBy: true,
-  // Política de referrer: no envía la URL de origen en solicitudes externas
-  referrerPolicy: { policy: 'no-referrer' },
-  // Previene ataques de tipo MIME-sniffing en IE
-  ieNoOpen: true,
-  // Desactiva la caché DNS para evitar filtración de info
-  dnsPrefetchControl: { allow: false },
-  // A02 · Previene que el navegador guarde contraseñas en caché
-  crossOriginOpenerPolicy: { policy: 'same-origin' },
-  crossOriginResourcePolicy: { policy: 'same-origin' },
-}));
+app.use(helmetConfig);
 
 // ── A05 · CORS — solo permite orígenes autorizados ───────────────────────────
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:4200')

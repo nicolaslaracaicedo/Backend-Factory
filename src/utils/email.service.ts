@@ -128,26 +128,104 @@ export interface EnvioVerificacionEmailOpts {
 
 function buildHtmlVerificacion(opts: EnvioVerificacionEmailOpts): string {
   return `
-<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
-  <div style="background:#1a56db;padding:24px 32px;">
-    <h1 style="color:#fff;margin:0;font-size:20px;">Verificación de Correo Electrónico</h1>
-    <p style="color:#fff;opacity:.85;margin:4px 0 0;font-size:13px;">Factory — Sistema Contable</p>
-  </div>
-  <div style="padding:24px 32px;">
-    <p style="color:#1e2939;">Estimado/a <strong>${opts.nombreUsuario}</strong>,</p>
-    <p style="color:#374151;">Gracias por registrarse. Para activar su cuenta utilice el siguiente código de verificación:</p>
-    <div style="text-align:center;margin:28px 0;">
-      <div style="display:inline-block;background:#1a56db;color:#fff;font-size:34px;font-weight:bold;letter-spacing:10px;padding:18px 36px;border-radius:8px;">
-        ${opts.codigo}
-      </div>
-    </div>
-    <p style="color:#374151;">Este código es válido por <strong>15 minutos</strong>. Si no realizó este registro, ignore este mensaje.</p>
-    <p style="color:#64748b;font-size:13px;">Por seguridad, nunca comparta este código con nadie.</p>
-  </div>
-  <div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;">
-    <p style="color:#64748b;font-size:12px;margin:0;">Factory — Sistema Contable</p>
-  </div>
-</div>`;
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Verificación de Correo — Factory</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;font-family:Arial,Helvetica,sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f4f8;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(4,43,104,0.12);">
+
+          <!-- HEADER -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#042B68 0%,#0D5FA8 60%,#1498A8 100%);padding:40px 40px 32px;text-align:center;">
+              <div style="display:inline-block;background:#ffffff;border-radius:16px;padding:16px 32px;margin:0 auto 24px;box-shadow:0 4px 16px rgba(0,0,0,0.18);">
+                <img
+                  src="https://i.imgur.com/4N4tptH.png"
+                  alt="Factory Sistema Contable"
+                  style="max-width:220px;height:auto;display:block;margin:0 auto;"
+                />
+              </div>
+              <div style="display:inline-block;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);border-radius:20px;padding:7px 22px;">
+                <span style="color:#7EE3E4;font-size:12px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;">Verificación de Cuenta</span>
+              </div>
+            </td>
+          </tr>
+
+          <!-- CUERPO -->
+          <tr>
+            <td style="background:#ffffff;padding:40px 40px 32px;">
+
+              <p style="margin:0 0 8px;color:#042B68;font-size:22px;font-weight:700;">
+                ¡Hola, ${opts.nombreUsuario}!
+              </p>
+              <p style="margin:0 0 24px;color:#4a5568;font-size:15px;line-height:1.6;">
+                Gracias por registrarte en <strong style="color:#0D5FA8;">Factory</strong>. Para activar tu cuenta e iniciar sesión, ingresa el siguiente código de verificación:
+              </p>
+
+              <!-- CÓDIGO -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+                <tr>
+                  <td align="center">
+                    <div style="display:inline-block;background:linear-gradient(135deg,#0D5FA8,#1498A8);border-radius:12px;padding:2px;">
+                      <div style="background:#ffffff;border-radius:10px;padding:24px 48px;text-align:center;">
+                        <span style="font-size:42px;font-weight:800;letter-spacing:14px;color:#042B68;font-family:'Courier New',monospace;">
+                          ${opts.codigo}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- INFO VALIDEZ -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f9ff;border-left:4px solid #38C4CF;border-radius:0 8px 8px 0;margin:0 0 24px;">
+                <tr>
+                  <td style="padding:14px 18px;">
+                    <p style="margin:0;color:#042B68;font-size:13px;line-height:1.5;">
+                      ⏱ &nbsp;Este código es válido por <strong>15 minutos</strong> a partir de la recepción de este correo.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 8px;color:#4a5568;font-size:14px;line-height:1.6;">
+                Si no creaste una cuenta en Factory, puedes ignorar este mensaje con seguridad. Nadie podrá acceder a tu cuenta sin este código.
+              </p>
+
+              <!-- DIVIDER -->
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:28px 0;"/>
+
+              <p style="margin:0;color:#718096;font-size:12px;line-height:1.6;">
+                🔒 &nbsp;Por tu seguridad, <strong>nunca compartas este código</strong> con nadie. Factory jamás te lo pedirá por teléfono o chat.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#042B68,#0D5FA8);padding:24px 40px;text-align:center;">
+              <p style="margin:0 0 6px;color:#76C3E8;font-size:13px;font-weight:600;">Factory — Sistema Contable</p>
+              <p style="margin:0;color:rgba(255,255,255,0.5);font-size:11px;">
+                Este es un correo automático, por favor no respondas a este mensaje.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>`;
 }
 
 function createSystemTransporter() {
