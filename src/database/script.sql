@@ -83,6 +83,7 @@ CREATE TABLE usuarios (
   direccion                 VARCHAR(500),
   email                     VARCHAR(150) NOT NULL,
   password                  TEXT NOT NULL,
+  email_verificado          BOOLEAN NOT NULL DEFAULT FALSE,
   estado                    VARCHAR(20) DEFAULT 'ACTIVO',
   ultimo_login              TIMESTAMP,
   id_punto_emision_default  INT REFERENCES puntos_emision(id),
@@ -104,6 +105,20 @@ CREATE TABLE codigos_recuperacion (
 );
 
 CREATE INDEX idx_codigos_recuperacion_usuario ON codigos_recuperacion(id_usuario);
+
+-- =====================================================
+-- 5b. TOKENS DE VERIFICACIÓN DE CORREO
+-- =====================================================
+CREATE TABLE tokens_verificacion_email (
+  id          SERIAL PRIMARY KEY,
+  id_usuario  INT NOT NULL REFERENCES usuarios(id),
+  token       VARCHAR(6) NOT NULL,
+  expira_en   TIMESTAMP NOT NULL,
+  usado       BOOLEAN DEFAULT FALSE,
+  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_tokens_verificacion_usuario ON tokens_verificacion_email(id_usuario);
 
 -- =====================================================
 -- 6. FIRMA ELECTRÓNICA

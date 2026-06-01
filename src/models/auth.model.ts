@@ -9,11 +9,21 @@ export interface Usuario {
   nombre: string;
   apellido: string;
   email: string | null;
+  email_verificado: boolean;
   estado: string;
   id_rol: number;
   id_punto_emision_default: number | null;
   punto_emision_default_codigo: string | null;
   punto_emision_default_descripcion: string | null;
+}
+
+export interface TokenVerificacionEmail {
+  id: number;
+  id_usuario: number;
+  token: string;
+  expira_en: Date;
+  usado: boolean;
+  created_at: Date;
 }
 
 export interface Empresa {
@@ -110,6 +120,41 @@ export const AuthModel = {
     await pool.query(
       "UPDATE codigos_recuperacion SET usado = TRUE WHERE id = $1",
       [codigoId]
+    );
+  },
+
+  async saveTokenVerificacionEmail(usuarioId: number, token: string): Promise<void> {
+    await pool.query(
+      "UPDATE tokens_verificacion_email SET usado = TRUE WHERE id_usuario = $1 AND usado = FALSE",
+      [usuarioId]
+    );
+    await pool.query(
+      "INSERT INTO tokens_verificacion_email (id_usuario, token, expira_en) VALUES ($1, $2, NOW() + INTERVAL '15 minutes')",
+      [usuarioId, token]
+    );
+  },
+
+  async findTokenVerificacionValido(usuarioId: number, token: string): Promise<TokenVerificacionEmail | null> {
+    const result = await pool.query<TokenVerificacionEmail>(
+      `SELECT * FROM tokens_verificacion_email
+       WHERE id_usuario = $1 AND token = $2 AND usado = FALSE AND expira_en > NOW()
+       ORDER BY created_at DESC LIMIT 1`,
+      [usuarioId, token]
+    );
+    return result.rows[0] || null;
+  },
+
+  async marcarTokenVerificacionUsado(tokenId: number): Promise<void> {
+    await pool.query(
+      "UPDATE tokens_verificacion_email SET usado = TRUE WHERE id = $1",
+      [tokenId]
+    );
+  },
+
+  async marcarEmailVerificado(usuarioId: number): Promise<void> {
+    await pool.query(
+      "UPDATE usuarios SET email_verificado = TRUE, updated_at = NOW() WHERE id = $1",
+      [usuarioId]
     );
   },
 

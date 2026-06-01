@@ -120,6 +120,63 @@ export async function enviarCodigoRecuperacion(empresa: Empresa, opts: EnvioRecu
   });
 }
 
+export interface EnvioVerificacionEmailOpts {
+  correoDestino: string;
+  nombreUsuario: string;
+  codigo: string;
+}
+
+function buildHtmlVerificacion(opts: EnvioVerificacionEmailOpts): string {
+  return `
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+  <div style="background:#1a56db;padding:24px 32px;">
+    <h1 style="color:#fff;margin:0;font-size:20px;">Verificación de Correo Electrónico</h1>
+    <p style="color:#fff;opacity:.85;margin:4px 0 0;font-size:13px;">Factory — Sistema Contable</p>
+  </div>
+  <div style="padding:24px 32px;">
+    <p style="color:#1e2939;">Estimado/a <strong>${opts.nombreUsuario}</strong>,</p>
+    <p style="color:#374151;">Gracias por registrarse. Para activar su cuenta utilice el siguiente código de verificación:</p>
+    <div style="text-align:center;margin:28px 0;">
+      <div style="display:inline-block;background:#1a56db;color:#fff;font-size:34px;font-weight:bold;letter-spacing:10px;padding:18px 36px;border-radius:8px;">
+        ${opts.codigo}
+      </div>
+    </div>
+    <p style="color:#374151;">Este código es válido por <strong>15 minutos</strong>. Si no realizó este registro, ignore este mensaje.</p>
+    <p style="color:#64748b;font-size:13px;">Por seguridad, nunca comparta este código con nadie.</p>
+  </div>
+  <div style="background:#f8fafc;padding:16px 32px;border-top:1px solid #e2e8f0;">
+    <p style="color:#64748b;font-size:12px;margin:0;">Factory — Sistema Contable</p>
+  </div>
+</div>`;
+}
+
+function createSystemTransporter() {
+  const user = process.env.SYSTEM_EMAIL_USER;
+  const pass = process.env.SYSTEM_EMAIL_PASSWORD;
+  if (!user || !pass)
+    throw new Error('El correo del sistema no está configurado (SYSTEM_EMAIL_USER / SYSTEM_EMAIL_PASSWORD).');
+
+  return nodemailer.createTransport({
+    host: process.env.SYSTEM_EMAIL_HOST ?? 'smtp.gmail.com',
+    port: Number(process.env.SYSTEM_EMAIL_PORT ?? 587),
+    secure: process.env.SYSTEM_EMAIL_SECURE === 'true',
+    auth: { user, pass },
+  });
+}
+
+export async function enviarVerificacionEmail(opts: EnvioVerificacionEmailOpts): Promise<void> {
+  const transporter = createSystemTransporter();
+  const fromName = process.env.SYSTEM_EMAIL_FROM_NAME ?? 'Factory Sistema Contable';
+  const fromUser = process.env.SYSTEM_EMAIL_USER!;
+
+  await transporter.sendMail({
+    from: `"${fromName}" <${fromUser}>`,
+    to: opts.correoDestino,
+    subject: `Código de verificación de correo - Factory`,
+    html: buildHtmlVerificacion(opts),
+  });
+}
+
 export async function enviarDocumentoPorCorreo(empresa: Empresa, opts: EnvioDocumentoOpts): Promise<void> {
   if (!empresa.smtp_host || !empresa.smtp_user || !empresa.smtp_password_enc)
     throw new Error('La empresa no tiene SMTP configurado. Configure el correo saliente en los datos de la empresa.');

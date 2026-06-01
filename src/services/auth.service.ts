@@ -4,7 +4,7 @@ import { SignOptions } from "jsonwebtoken";
 import { AuthModel } from "../models/auth.model";
 import { JwtPayload } from "../types/jwt.types";
 import { validarCedula, validarRuc, validarEmail, validarPassword, validarTelefono } from "../utils/validators";
-import { enviarCodigoRecuperacion } from "../utils/email.service";
+import { enviarCodigoRecuperacion, enviarVerificacionEmail } from "../utils/email.service";
 
 export interface LoginInput {
   ruc: string;
@@ -20,6 +20,7 @@ export interface LoginResult {
     cedula: string;
     empresa: number;
     rol: number;
+    email_verificado: boolean;
     punto_emision_default: {
       id: number;
       codigo: string;
@@ -83,6 +84,7 @@ export const AuthService = {
         cedula: usuario.identificacion,
         empresa: empresa.id,
         rol: usuario.id_rol,
+        email_verificado: usuario.email_verificado,
         punto_emision_default: usuario.id_punto_emision_default
           ? {
               id: usuario.id_punto_emision_default,
@@ -129,12 +131,68 @@ export const AuthService = {
     direccion: data.direccion,
   });
 
+  const codigoVerificacion = String(Math.floor(100000 + Math.random() * 900000));
+  await AuthModel.saveTokenVerificacionEmail(result.usuarioId, codigoVerificacion);
+
+  await enviarVerificacionEmail({
+    correoDestino: data.email,
+    nombreUsuario: `${data.nombre} ${data.apellido}`,
+    codigo: codigoVerificacion,
+  });
+
   return {
-    message: "Usuario y empresa creados correctamente",
+    message: "Usuario y empresa creados correctamente. Se ha enviado un código de verificación a su correo. Válido por 15 minutos.",
     empresaId: result.empresaId,
     usuarioId: result.usuarioId
   };
 },
+
+  async verificarEmail(data: { ruc: string; cedula: string; codigo: string }): Promise<void> {
+    const { ruc, cedula, codigo } = data;
+
+    if (!validarRuc(ruc)) throw new Error('RUC inválido.');
+    if (!validarCedula(cedula)) throw new Error('Cédula inválida.');
+    if (!codigo || codigo.trim().length === 0) throw new Error('El código de verificación es requerido.');
+
+    const empresa = await AuthModel.findEmpresaByRuc(ruc);
+    if (!empresa) throw new Error('RUC no registrado o empresa inactiva.');
+
+    const usuario = await AuthModel.findUsuarioByCedulaYEmpresa(cedula, empresa.id);
+    if (!usuario) throw new Error('No existe un usuario con esa cédula en la empresa indicada.');
+
+    if (usuario.email_verificado) throw new Error('El correo ya fue verificado anteriormente.');
+
+    const tokenRegistro = await AuthModel.findTokenVerificacionValido(usuario.id, codigo.trim());
+    if (!tokenRegistro) throw new Error('Código inválido o expirado.');
+
+    await AuthModel.marcarEmailVerificado(usuario.id);
+    await AuthModel.marcarTokenVerificacionUsado(tokenRegistro.id);
+  },
+
+  async reenviarVerificacion(data: { ruc: string; cedula: string }): Promise<void> {
+    const { ruc, cedula } = data;
+
+    if (!validarRuc(ruc)) throw new Error('RUC inválido.');
+    if (!validarCedula(cedula)) throw new Error('Cédula inválida.');
+
+    const empresa = await AuthModel.findEmpresaByRuc(ruc);
+    if (!empresa) throw new Error('RUC no registrado o empresa inactiva.');
+
+    const usuario = await AuthModel.findUsuarioByCedulaYEmpresa(cedula, empresa.id);
+    if (!usuario) throw new Error('No existe un usuario con esa cédula en la empresa indicada.');
+
+    if (usuario.email_verificado) throw new Error('El correo ya fue verificado anteriormente.');
+    if (!usuario.email) throw new Error('El usuario no tiene correo electrónico registrado.');
+
+    const codigoVerificacion = String(Math.floor(100000 + Math.random() * 900000));
+    await AuthModel.saveTokenVerificacionEmail(usuario.id, codigoVerificacion);
+
+    await enviarVerificacionEmail({
+      correoDestino: usuario.email,
+      nombreUsuario: `${usuario.nombre} ${usuario.apellido}`,
+      codigo: codigoVerificacion,
+    });
+  },
 
   async solicitarRecuperacion(ruc: string, cedula: string): Promise<void> {
     if (!validarRuc(ruc)) throw new Error('RUC inválido.');

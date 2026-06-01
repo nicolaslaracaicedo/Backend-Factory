@@ -128,6 +128,68 @@ export const AuthController = {
     }
   },
 
+  async verificarEmail(req: Request, res: Response): Promise<void> {
+    try {
+      const { ruc, cedula, codigo } = req.body;
+
+      if (!ruc || !cedula || !codigo) {
+        res.status(400).json({ success: false, message: 'RUC, cédula y código son requeridos.' });
+        return;
+      }
+
+      await AuthService.verificarEmail({ ruc, cedula, codigo });
+
+      res.status(200).json({ success: true, message: 'Correo verificado correctamente.' });
+    } catch (error: any) {
+      const esErrorCliente = [
+        'RUC inválido.',
+        'Cédula inválida.',
+        'El código de verificación es requerido.',
+        'RUC no registrado o empresa inactiva.',
+        'No existe un usuario con esa cédula en la empresa indicada.',
+        'El correo ya fue verificado anteriormente.',
+        'Código inválido o expirado.',
+      ].includes(error.message);
+
+      res.status(esErrorCliente ? 400 : 500).json({
+        success: false,
+        message: error.message || 'Error interno del servidor',
+      });
+    }
+  },
+
+  async reenviarVerificacion(req: Request, res: Response): Promise<void> {
+    try {
+      const { ruc, cedula } = req.body;
+
+      if (!ruc || !cedula) {
+        res.status(400).json({ success: false, message: 'RUC y cédula son requeridos.' });
+        return;
+      }
+
+      await AuthService.reenviarVerificacion({ ruc, cedula });
+
+      res.status(200).json({
+        success: true,
+        message: 'Se ha reenviado un nuevo código de verificación al correo registrado. Válido por 15 minutos.',
+      });
+    } catch (error: any) {
+      const esErrorCliente = [
+        'RUC inválido.',
+        'Cédula inválida.',
+        'RUC no registrado o empresa inactiva.',
+        'No existe un usuario con esa cédula en la empresa indicada.',
+        'El correo ya fue verificado anteriormente.',
+        'El usuario no tiene correo electrónico registrado.',
+      ].includes(error.message);
+
+      res.status(esErrorCliente ? 400 : 500).json({
+        success: false,
+        message: error.message || 'Error interno del servidor',
+      });
+    }
+  },
+
   async cambiarContrasena(req: Request, res: Response): Promise<void> {
     try {
       const { contrasenaActual, contrasenaNueva, confirmarContrasena } = req.body;

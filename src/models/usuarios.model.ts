@@ -11,6 +11,7 @@ export interface Usuario {
   telefono: string | null;
   direccion: string | null;
   email: string;
+  email_verificado: boolean;
   estado: string;
   ultimo_login: Date | null;
   id_punto_emision_default: number | null;
@@ -52,7 +53,7 @@ export const UsuarioModel = {
   async findAllByEmpresa(empresaId: number): Promise<Usuario[]> {
     const result = await pool.query<Usuario>(
       `SELECT u.id, u.id_empresa, u.id_rol, u.tipo_identificacion, u.identificacion,
-              u.nombre, u.apellido, u.telefono, u.direccion, u.email,
+              u.nombre, u.apellido, u.telefono, u.direccion, u.email, u.email_verificado,
               u.estado, u.ultimo_login, u.id_punto_emision_default, u.created_at, u.updated_at,
               r.nombre AS rol_nombre,
               pe.codigo AS punto_emision_default_codigo,
@@ -70,7 +71,7 @@ export const UsuarioModel = {
   async findById(id: number, empresaId: number): Promise<Usuario | null> {
     const result = await pool.query<Usuario>(
       `SELECT u.id, u.id_empresa, u.id_rol, u.tipo_identificacion, u.identificacion,
-              u.nombre, u.apellido, u.telefono, u.direccion, u.email,
+              u.nombre, u.apellido, u.telefono, u.direccion, u.email, u.email_verificado,
               u.estado, u.ultimo_login, u.id_punto_emision_default, u.created_at, u.updated_at,
               r.nombre AS rol_nombre,
               pe.codigo AS punto_emision_default_codigo,
@@ -103,8 +104,8 @@ export const UsuarioModel = {
   async create(data: UsuarioCreateData): Promise<Usuario> {
     const result = await pool.query<{ id: number }>(
       `INSERT INTO usuarios
-         (id_empresa, id_rol, tipo_identificacion, identificacion, nombre, apellido, email, password, telefono, direccion, estado, id_punto_emision_default)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'ACTIVO',$11)
+         (id_empresa, id_rol, tipo_identificacion, identificacion, nombre, apellido, email, password, telefono, direccion, estado, email_verificado, id_punto_emision_default)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'ACTIVO',TRUE,$11)
        RETURNING id`,
       [
         data.id_empresa, data.id_rol, data.tipo_identificacion, data.identificacion,
