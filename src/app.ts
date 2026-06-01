@@ -4,6 +4,15 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
 import pool from './config/database';
+import { sequelize } from './sequelize';
+import { runSeeders } from './sequelize/seeders';
+import {
+  globalRateLimit,
+  xssSanitizer,
+  hppProtection,
+  contentTypeGuard,
+  securityLogger,
+} from './middlewares/security.middleware';
 import authRoutes from './routes/auth.routes';
 import empresasRoutes from './routes/empresas.routes';
 import firmasRoutes from './routes/firmas_electronicas.routes';
@@ -37,15 +46,88 @@ const app = express();
 
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(helmet());
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ── A05 · Helmet — cabeceras de seguridad HTTP ──────────────────────────────
+app.use(helmet({
+  // Política de seguridad de contenido: solo permite recursos del mismo origen
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc:     ["'self'"],
+      scriptSrc:      ["'self'"],
+      styleSrc:       ["'self'"],
+      imgSrc:         ["'self'", 'data:'],
+      connectSrc:     ["'self'"],
+      fontSrc:        ["'self'"],
+      objectSrc:      ["'none'"],
+      frameSrc:       ["'none'"],
+      upgradeInsecureRequests: [],
+    },
+  },
+  // A02 · HSTS: fuerza HTTPS por 1 año
+  strictTransportSecurity: {
+    maxAge:            31536000,
+    includeSubDomains: true,
+    preload:           true,
+  },
+  // Previene que el navegador detecte el tipo MIME automáticamente
+  noSniff: true,
+  // Previene que el sitio sea embebido en iframes (clickjacking)
+  frameguard: { action: 'deny' },
+  // Oculta que el servidor usa Express
+  hidePoweredBy: true,
+  // Política de referrer: no envía la URL de origen en solicitudes externas
+  referrerPolicy: { policy: 'no-referrer' },
+  // Previene ataques de tipo MIME-sniffing en IE
+  ieNoOpen: true,
+  // Desactiva la caché DNS para evitar filtración de info
+  dnsPrefetchControl: { allow: false },
+  // A02 · Previene que el navegador guarde contraseñas en caché
+  crossOriginOpenerPolicy: { policy: 'same-origin' },
+  crossOriginResourcePolicy: { policy: 'same-origin' },
+}));
+
+// ── A05 · CORS — solo permite orígenes autorizados ───────────────────────────
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:4200')
+  .split(',')
+  .map(o => o.trim());
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Modo abierto para desarrollo
+    if (allowedOrigins.includes('*')) return callback(null, true);
+    // Permite requests sin origin (Postman, mobile apps, curl)
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`Origen no permitido por CORS: ${origin}`));
+  },
+  methods:            ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders:     ['Content-Type', 'Authorization'],
+  exposedHeaders:     ['X-RateLimit-Limit', 'X-RateLimit-Remaining'],
+  credentials:        true,
+  optionsSuccessStatus: 200,
+}));
+
+// ── A09 · Logger de seguridad ────────────────────────────────────────────────
+app.use(securityLogger);
+
+// ── A07 · Rate limiting global ───────────────────────────────────────────────
+app.use(globalRateLimit);
+
+// ── A03 · Prevención de contaminación de parámetros HTTP ────────────────────
+app.use(hppProtection);
+
+// ── A08 · Límite de tamaño de body (100kb) ──────────────────────────────────
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
+
+// ── A03 · Sanitización XSS de inputs ────────────────────────────────────────
+app.use(xssSanitizer);
+
+// ── A05 · Validación de Content-Type ────────────────────────────────────────
+app.use(contentTypeGuard);
+
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.get('/', (_req, res) => {
   res.json({ status: 'ok' });
-
 });
 
 //RUTAS AUTH
@@ -120,10 +202,26 @@ app.use('/api/log-sri', logSriRoutes);
 // RUTAS DASHBOARD
 app.use('/api/dashboard', dashboardRoutes);
 
+// ── A09 · Manejador global de errores — nunca expone stack traces ────────────
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error(`[ERROR] ${new Date().toISOString()} | ${err.message}`);
+  res.status(500).json({ success: false, message: 'Error interno del servidor.' });
+});
+
+// ── A05 · Ruta no encontrada ──────────────────────────────────────────────────
+app.use((_req: express.Request, res: express.Response) => {
+  res.status(404).json({ success: false, message: 'Recurso no encontrado.' });
+});
+
 initRedis();
 
 pool.query('SELECT 1')
-  .then(() => {
+  .then(async () => {
+    // sync({ force: false }) crea las tablas que no existen, sin tocar las que ya están
+    await sequelize.sync({ force: false });
+    console.log('Sequelize sincronizado.');
+    await runSeeders();
+
     app.listen(PORT, () => {
       console.log(`Servidor corriendo en el puerto: ${PORT}`);
       iniciarCronRecurrentes();
