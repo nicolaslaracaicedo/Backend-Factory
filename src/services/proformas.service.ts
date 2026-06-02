@@ -26,7 +26,7 @@ function calcularLinea(d: {
   valor_irbpnr: number;
 }): { subtotal: number; valor_iva: number; total: number } {
   const subtotal = round2(d.cantidad * d.precio_unitario - d.descuento);
-  const valor_iva = round2((subtotal + d.valor_ice) * (d.porcentaje_iva / 100));
+  const valor_iva = round2((subtotal + d.valor_ice + d.valor_irbpnr) * (d.porcentaje_iva / 100));
   const total = round2(subtotal + valor_iva + d.valor_ice + d.valor_irbpnr);
   return { subtotal, valor_iva, total };
 }

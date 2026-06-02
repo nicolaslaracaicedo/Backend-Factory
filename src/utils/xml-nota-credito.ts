@@ -51,7 +51,8 @@ function agruparIva(detalles: NotaCreditoConDetalles['detalles']): GrupoIva[] {
   for (const d of detalles) {
     const cp = CODIGO_PORCENTAJE[d.codigo_iva] ?? '4';
     const valIce = Number(d.valor_ice ?? 0);
-    const baseIva = Number(d.subtotal) + valIce;
+    const valIrbpnr = Number(d.valor_irbpnr ?? 0);
+    const baseIva = Number(d.subtotal) + valIce + valIrbpnr;
     const g = grupos.get(cp);
     if (g) {
       g.baseImponible += baseIva;
@@ -156,7 +157,7 @@ export function generarXmlNotaCredito(
         `<codigo>2</codigo>` +
         `<codigoPorcentaje>${cp}</codigoPorcentaje>` +
         `<tarifa>${fmt2(d.porcentaje_iva)}</tarifa>` +
-        `<baseImponible>${fmt2(Number(d.subtotal) + valIce)}</baseImponible>` +
+        `<baseImponible>${fmt2(Number(d.subtotal) + valIce + valIrbpnr)}</baseImponible>` +
         `<valor>${fmt2(d.valor_iva)}</valor>` +
         `</impuesto>` +
         (valIce > 0

@@ -47,8 +47,9 @@ function agruparIva(detalles: FacturaConDetalles['detalles']): GrupoIva[] {
     const cp = CODIGO_PORCENTAJE[d.codigo_iva] ?? '4';
     const subtotal = Number(d.subtotal);
     const valIce = Number(d.valor_ice ?? 0);
+    const valIrbpnr = Number(d.valor_irbpnr ?? 0);
     const valor_iva = Number(d.valor_iva);
-    const baseIva = subtotal + valIce;
+    const baseIva = subtotal + valIce + valIrbpnr;
     const g = grupos.get(cp);
     if (g) {
       g.baseImponible += baseIva;
@@ -172,7 +173,7 @@ export function generarXmlFactura(
         `<codigo>2</codigo>` +
         `<codigoPorcentaje>${cp}</codigoPorcentaje>` +
         `<tarifa>${fmt2(d.porcentaje_iva)}</tarifa>` +
-        `<baseImponible>${fmt2(Number(d.subtotal) + Number(d.valor_ice ?? 0))}</baseImponible>` +
+        `<baseImponible>${fmt2(Number(d.subtotal) + Number(d.valor_ice ?? 0) + Number((d as any).valor_irbpnr ?? 0))}</baseImponible>` +
         `<valor>${fmt2(d.valor_iva)}</valor>` +
         `</impuesto>` +
         (Number(d.valor_ice ?? 0) > 0

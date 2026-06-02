@@ -29,7 +29,7 @@ function inferirTipoIdProveedor(identificacion: string): string {
 
 function calcularLinea(cantidad: number, precio_unitario: number, descuento: number, porcentaje_iva: number, valor_ice = 0, valor_irbpnr = 0) {
   const subtotal = round2(cantidad * precio_unitario - descuento);
-  const valor_iva = round2((subtotal + valor_ice) * (porcentaje_iva / 100));
+  const valor_iva = round2((subtotal + valor_ice + valor_irbpnr) * (porcentaje_iva / 100));
   const total = round2(subtotal + valor_iva + valor_ice + valor_irbpnr);
   return { subtotal, valor_iva, total };
 }
